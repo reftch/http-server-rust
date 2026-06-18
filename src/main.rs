@@ -40,11 +40,10 @@ fn main() -> io::Result<()> {
     let mut conns: Slab<Conn> = Slab::with_capacity(1024);
     let mut buf = [0u8; 4096];
 
-    println!("server starting addr: http://{}", addr);
-
     // small “ready” marker after bind + register
     println!(
-        "server READY | startup took {} µs",
+        "Server READY on http://{} | startup took {} µs",
+        addr,
         start_instant.elapsed().as_micros()
     );
 
