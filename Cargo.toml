@@ -1,0 +1,15 @@
+[package]
+name = "web-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mio = { version = "1.2.1", features = ["net", "os-poll", "os-ext"] }
+slab = "0.4"
+socket2 = "0.6.4"
+num_cpus = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
