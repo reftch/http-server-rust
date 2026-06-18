@@ -1,12 +1,12 @@
 use mio::net::{TcpListener, TcpStream};
 use mio::{Events, Interest, Poll, Token};
+use num_cpus;
 use slab::Slab;
 use socket2::{Domain, Socket, Type};
 use std::io::{Read, Write};
 use std::net::SocketAddr;
-use std::time::Duration;
 use std::thread;
-use num_cpus;
+use std::time::Duration;
 
 const SERVER: Token = Token(0);
 
@@ -35,7 +35,7 @@ fn worker_loop(std_listener: std::net::TcpListener) -> std::io::Result<()> {
     let mut slab: Slab<Connection> = Slab::with_capacity(4096);
 
     loop {
-        poll.poll(&mut events, Some(Duration::from_millis(100)))?;
+        poll.poll(&mut events, Some(Duration::from_secs(60)))?;
 
         for event in &events {
             match event.token() {
@@ -92,24 +92,39 @@ fn worker_loop(std_listener: std::net::TcpListener) -> std::io::Result<()> {
                                             let headers_lc = to_lowercase_bytes(headers);
                                             // let has_conn_close = headers_lc.windows(14).any(|w| w == b"connection: ");
                                             // determine keep-alive: prefer explicit header, else HTTP/1.1 defaults to keep-alive
-                                            let keep = if headers_lc.windows(17).any(|w| w == b"connection: close") {
+                                            let keep = if headers_lc
+                                                .windows(17)
+                                                .any(|w| w == b"connection: close")
+                                            {
                                                 false
-                                            } else if headers_lc.windows(21).any(|w| w == b"connection: keep-alive") {
+                                            } else if headers_lc
+                                                .windows(21)
+                                                .any(|w| w == b"connection: keep-alive")
+                                            {
                                                 true
-                                            } else if headers_lc.windows(8).any(|w| w == b"http/1.1") {
+                                            } else if headers_lc
+                                                .windows(8)
+                                                .any(|w| w == b"http/1.1")
+                                            {
                                                 true
                                             } else {
                                                 false
                                             };
                                             conn.keep_alive = keep;
-                                            conn.write_buf = if keep { RESPONSE_KEEPALIVE } else { RESPONSE_CLOSE };
+                                            conn.write_buf = if keep {
+                                                RESPONSE_KEEPALIVE
+                                            } else {
+                                                RESPONSE_CLOSE
+                                            };
                                             conn.write_pos = 0;
                                             // drop request bytes (not handling pipelining for now)
                                             conn.read_buf.clear();
                                             break;
                                         }
                                     }
-                                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                        break;
+                                    }
                                     Err(e) => {
                                         eprintln!("read error: {e}");
                                         done = true;
@@ -121,16 +136,15 @@ fn worker_loop(std_listener: std::net::TcpListener) -> std::io::Result<()> {
 
                         if event.is_writable() && !conn.write_buf.is_empty() {
                             while conn.write_pos < conn.write_buf.len() {
-                                match conn
-                                    .socket
-                                    .write(&conn.write_buf[conn.write_pos..])
-                                {
+                                match conn.socket.write(&conn.write_buf[conn.write_pos..]) {
                                     Ok(0) => {
                                         done = true;
                                         break;
                                     }
                                     Ok(n) => conn.write_pos += n,
-                                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                        break;
+                                    }
                                     Err(e) => {
                                         eprintln!("write error: {e}");
                                         done = true;
