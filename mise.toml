@@ -1,0 +1,12 @@
+[tasks.prod-up]
+description = 'Bring up production environment'
+quiet = true
+run = '''
+docker compose -f docker/compose.yml up -d --build
+docker image prune -a -f
+'''
+
+[tasks.prod-down]
+description = 'Take down production environment'
+quiet = true
+run = 'docker compose -f docker/compose.yml down'
