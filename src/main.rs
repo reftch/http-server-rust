@@ -46,7 +46,7 @@ fn main() -> io::Result<()> {
         revents: 0,
     }];
 
-    let mut connections: HashMap<usize, Connection> = HashMap::new();
+    let mut connections: HashMap<i32, Connection> = HashMap::new();
 
     let startup_us = init_start.elapsed().as_micros();
     println!("Listening on http://{}", listener.local_addr()?);
@@ -86,14 +86,13 @@ fn main() -> io::Result<()> {
                 match listener.accept() {
                     Ok((stream, _)) => {
                         let conn = Connection::new(stream)?;
-                        let idx = poll_fds.len();
                         let fd = conn.socket.as_raw_fd();
                         poll_fds.push(PollFd {
                             fd,
                             events: POLLIN,
                             revents: 0,
                         });
-                        connections.insert(idx, conn);
+                        connections.insert(fd, conn);
                     }
                     Err(ref err) if would_block(err) => break,
                     Err(err) => {
@@ -120,12 +119,16 @@ fn main() -> io::Result<()> {
             }
 
             if revents & POLLOUT != 0 {
-                if let Some(conn) = connections.get_mut(&i) {
+                let fd = poll_fds[i].fd;
+                if let Some(conn) = connections.get_mut(&fd) {
                     match handle_write(conn) {
-                        Ok(true) => {
+                        Ok(WriteState::Done) => {
                             poll_fds[i].events = POLLIN;
                         }
-                        Ok(false) => {
+                        Ok(WriteState::Continue) => {
+                            // still have data to write; keep POLLOUT
+                        }
+                        Ok(WriteState::Close) => {
                             indices_to_remove.push(i);
                         }
                         Err(err) => {
@@ -135,7 +138,8 @@ fn main() -> io::Result<()> {
                     }
                 }
             } else if revents & POLLIN != 0 {
-                if let Some(conn) = connections.get_mut(&i) {
+                let fd = poll_fds[i].fd;
+                if let Some(conn) = connections.get_mut(&fd) {
                     match handle_read(conn) {
                         Ok(true) => {
                             if !conn.write_buf.is_empty() {
@@ -155,7 +159,8 @@ fn main() -> io::Result<()> {
         }
 
         for i in indices_to_remove.iter().rev() {
-            connections.remove(i);
+            let fd = poll_fds[*i].fd;
+            connections.remove(&fd);
             poll_fds.remove(*i);
         }
     }
@@ -192,18 +197,28 @@ fn handle_read(conn: &mut Connection) -> io::Result<bool> {
     Ok(true)
 }
 
-fn handle_write(conn: &mut Connection) -> io::Result<bool> {
-    while !conn.write_buf.is_empty() {
+enum WriteState {
+    Continue,
+    Done,
+    Close,
+}
+
+fn handle_write(conn: &mut Connection) -> io::Result<WriteState> {
+    loop {
+        if conn.write_buf.is_empty() {
+            return Ok(WriteState::Done);
+        }
+
         match conn.socket.write(&conn.write_buf) {
-            Ok(0) => return Ok(false),
+            Ok(0) => return Ok(WriteState::Close),
             Ok(n) => {
                 conn.write_buf.drain(0..n);
+                // continue draining until WouldBlock or empty
             }
-            Err(ref err) if would_block(err) => return Ok(true),
+            Err(ref err) if would_block(err) => return Ok(WriteState::Continue),
             Err(err) => return Err(err),
         }
     }
-    Ok(true)
 }
 
 fn would_block(err: &io::Error) -> bool {
