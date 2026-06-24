@@ -5,7 +5,7 @@ mod server;
 use server::Server;
 
 fn main() -> std::io::Result<()> {
-    let mut server = Server::new("127.0.0.1:8082")?;
+    let mut server = Server::new("0.0.0.0:8082")?;
     server.run()?;
     
     Ok(())
