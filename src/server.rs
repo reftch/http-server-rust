@@ -43,13 +43,17 @@ enum WriteState {
 }
 
 pub struct Server {
-    addr: String,
+    init_start: Instant,
+    listener: TcpListener,
+    // poll_fds:  Vec<PollFd>,
 }
 
 impl Server {
-    pub fn new(addr: impl Into<String>) -> io::Result<Self> {
+    pub fn new(addr: &str) -> io::Result<Self> {
         Ok(Server {
-            addr: addr.into(),
+            init_start: Instant::now(),
+            listener: TcpListener::bind(addr.parse::<std::net::SocketAddr>().unwrap())?,
+            // poll_fds: vec![],
         })
     }
 
@@ -101,22 +105,20 @@ impl Server {
     }
 
     pub fn run(&mut self) -> io::Result<()> {
-        let init_start = Instant::now();
-
-        let listener =
-            TcpListener::bind(self.addr.parse::<std::net::SocketAddr>().unwrap())?;
-        listener.set_nonblocking(true)?;
+        self.listener.set_nonblocking(true)?;
 
         let mut poll_fds: Vec<PollFd> = vec![PollFd {
-            fd: listener.as_raw_fd(),
+            fd: self.listener.as_raw_fd(),
             events: POLLIN,
             revents: 0,
         }];
 
         let mut connections: HashMap<i32, Connection> = HashMap::new();
 
-        let startup_us = init_start.elapsed().as_micros();
-        println!("Server started on http://{} in {}µs", listener.local_addr()?, startup_us);
+        let startup_us = self.init_start.elapsed().as_micros();
+        println!("Server started on http://{} in {}µs", self.listener.local_addr()?, startup_us);
+
+        let mut indices_to_remove = Vec::new();
 
         let mut idx: i64 = 0;
         loop {
@@ -134,6 +136,7 @@ impl Server {
 
             idx += 1;
             println!("Connections size {}, number {}", connections.len(), idx);
+
             if nfds < 0 {
                 let err = io::Error::last_os_error();
                 if err.kind() == io::ErrorKind::Interrupted {
@@ -149,7 +152,7 @@ impl Server {
             // Handle listener first (index 0)
             if poll_fds[0].revents & POLLIN != 0 {
                 loop {
-                    match listener.accept() {
+                    match self.listener.accept() {
                         Ok((stream, _)) => {
                             let conn = Connection::new(stream)?;
                             let fd = conn.socket.as_raw_fd();
@@ -170,7 +173,7 @@ impl Server {
             }
 
             // Handle client connections
-            let mut indices_to_remove = Vec::new();
+            indices_to_remove.clear();
 
             for i in 1..poll_fds.len() {
                 if poll_fds[i].revents == 0 {
