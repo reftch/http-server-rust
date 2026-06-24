@@ -155,7 +155,7 @@ impl Server {
 
 fn main() -> io::Result<()> {
     let start_instant = Instant::now();
-    let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
+    let addr: SocketAddr = "0.0.0.0:8082".parse().unwrap();
     let mut server = Server::new(addr)?;
 
     println!(
