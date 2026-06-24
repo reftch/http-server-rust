@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
+use std::time::Instant;
 
 const DEFAULT_ADDR: &str = "127.0.0.1:8082";
 const POLLIN: i16 = 0x001;
@@ -34,6 +35,8 @@ impl Connection {
 }
 
 fn main() -> io::Result<()> {
+    let init_start = Instant::now();
+
     let listener = TcpListener::bind(DEFAULT_ADDR.parse::<std::net::SocketAddr>().unwrap())?;
     listener.set_nonblocking(true)?;
 
@@ -45,8 +48,11 @@ fn main() -> io::Result<()> {
 
     let mut connections: HashMap<usize, Connection> = HashMap::new();
 
+    let startup_us = init_start.elapsed().as_micros();
     println!("Listening on http://{}", listener.local_addr()?);
+    println!("Server startup time: {} µs", startup_us);
 
+    let mut idx: i64 = 0;
     loop {
         for pfd in poll_fds.iter_mut() {
             pfd.revents = 0;
@@ -56,11 +62,12 @@ fn main() -> io::Result<()> {
             libc::poll(
                 poll_fds.as_mut_ptr() as *mut libc::pollfd,
                 poll_fds.len() as libc::nfds_t,
-                1000,
+                2000,
             )
         };
 
-        println!("Connections size {}", connections.len());
+        idx += 1;
+        println!("Connections size {}, number {}", connections.len(), idx);
         if nfds < 0 {
             let err = io::Error::last_os_error();
             if err.kind() == io::ErrorKind::Interrupted {

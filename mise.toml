@@ -1,3 +1,28 @@
+# -----------------------------------------------------------------------------
+# Development
+# -----------------------------------------------------------------------------
+
+[tasks.dev]
+description = "Run application in dev mode"
+env = { 
+    "DEV_MODE" = "true", 
+    "HOST" = "0.0.0.0", 
+    "PORT" = "8083",
+}
+run = [
+    { tasks = ["watch-app"] }, 
+]
+
+[tasks.app]
+description = "Build and run application"
+quiet = true
+hide = true
+run = "cargo run --release"
+
+[tasks.watch-app]
+description = "Watch and run application"
+run = "mise w -r -w src app"
+
 [tasks.prod-up]
 description = 'Bring up production environment'
 quiet = true
