@@ -1,5 +1,5 @@
 FROM rust:1.96 AS builder
-ARG TARGETARCH=amd64
+ARG TARGETARCH=arm64
 
 RUN case "$TARGETARCH" in \
     amd64) TARGET_TRIPLE=x86_64-unknown-linux-musl ;; \
