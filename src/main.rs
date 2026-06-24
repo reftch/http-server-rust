@@ -1,168 +1,222 @@
-use mio::{
-    Events, Interest, Poll, Token,
-    net::{TcpListener, TcpStream},
-};
-use slab::Slab;
+use std::collections::HashMap;
+use std::io::{self, Read, Write};
+use std::net::TcpListener;
+use std::os::unix::io::AsRawFd;
 
-use std::{
-    io::{self, Read, Write},
-    net::SocketAddr,
-    time::Instant,
-};
+const DEFAULT_ADDR: &str = "127.0.0.1:8082";
+const POLLIN: i16 = 0x001;
+const POLLOUT: i16 = 0x004;
+const POLLERR: i16 = 0x008;
+const POLLHUP: i16 = 0x010;
 
-const SERVER: Token = Token(0);
-
-const RESPONSE: &[u8] = b"\
-HTTP/1.1 200 OK\r\n\
-Content-Length: 13\r\n\
-Connection: keep-alive\r\n\
-Content-Type: text/plain\r\n\
-\r\n\
-Hello, World!";
-
-struct Conn {
-    stream: TcpStream,
+#[repr(C)]
+struct PollFd {
+    fd: i32,
+    events: i16,
+    revents: i16,
 }
 
-impl Conn {
-    fn new(stream: TcpStream) -> Self {
-        Conn { stream }
-    }
-
-    fn read_and_respond(&mut self, buf: &mut [u8]) -> io::Result<bool> {
-        loop {
-            match self.stream.read(buf) {
-                Ok(0) => return Ok(true),
-                Ok(_) => {
-                    let mut written = 0;
-                    while written < RESPONSE.len() {
-                        match self.stream.write(&RESPONSE[written..]) {
-                            Ok(0) => return Ok(true),
-                            Ok(n) => written += n,
-                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                            Err(_) => return Ok(true),
-                        }
-                    }
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                Err(_) => return Ok(true),
-            }
-        }
-        Ok(false)
-    }
+struct Connection {
+    socket: std::net::TcpStream,
+    read_buf: Vec<u8>,
+    write_buf: Vec<u8>,
 }
 
-pub struct Server {
-    poll: Poll,
-    events: Events,
-    listener: TcpListener,
-    conns: Slab<Conn>,
-    buf: [u8; 4096],
-}
-
-impl Server {
-    pub fn new(addr: SocketAddr) -> io::Result<Self> {
-        let poll = Poll::new()?;
-        let events = Events::with_capacity(8192);
-        let mut listener = TcpListener::bind(addr)?;
-
-        poll.registry()
-            .register(&mut listener, SERVER, Interest::READABLE)?;
-
-        let conns = Slab::with_capacity(1024);
-        let buf = [0u8; 4096];
-
-        Ok(Server {
-            poll,
-            events,
-            listener,
-            conns,
-            buf,
+impl Connection {
+    fn new(socket: std::net::TcpStream) -> io::Result<Connection> {
+        socket.set_nonblocking(true)?;
+        Ok(Connection {
+            socket,
+            read_buf: Vec::with_capacity(1024),
+            write_buf: Vec::new(),
         })
-    }
-
-    pub fn start(&mut self) -> io::Result<()> {
-        loop {
-            self.poll.poll(&mut self.events, None)?;
-
-            for event in self.events.iter() {
-                match event.token() {
-                    SERVER => {
-                        Self::handle_server_accept(
-                            &mut self.listener,
-                            &mut self.poll,
-                            &mut self.conns,
-                        )?;
-                    }
-                    token => {
-                        Self::handle_connection_event(
-                            token,
-                            &mut self.poll,
-                            &mut self.conns,
-                            &mut self.buf,
-                        )?;
-                    }
-                }
-            }
-        }
-    }
-
-    fn handle_server_accept(
-        listener: &mut TcpListener,
-        poll: &mut Poll,
-        conns: &mut Slab<Conn>,
-    ) -> io::Result<()> {
-        loop {
-            match listener.accept() {
-                Ok((mut stream, _)) => {
-                    let _ = stream.set_nodelay(true);
-
-                    let entry = conns.vacant_entry();
-                    let idx = entry.key();
-
-                    poll.registry()
-                        .register(&mut stream, Token(idx + 1), Interest::READABLE)?;
-
-                    entry.insert(Conn::new(stream));
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                Err(_) => break,
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_connection_event(
-        token: Token,
-        poll: &mut Poll,
-        conns: &mut Slab<Conn>,
-        buf: &mut [u8],
-    ) -> io::Result<()> {
-        let idx = token.0 - 1;
-
-        if let Some(conn) = conns.get_mut(idx) {
-            let close = conn.read_and_respond(buf)?;
-            if close {
-                if let Some(mut conn) = conns.try_remove(idx) {
-                    let _ = poll.registry().deregister(&mut conn.stream);
-                }
-            }
-        }
-
-        Ok(())
     }
 }
 
 fn main() -> io::Result<()> {
-    let start_instant = Instant::now();
-    let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
-    let mut server = Server::new(addr)?;
+    let listener = TcpListener::bind(DEFAULT_ADDR.parse::<std::net::SocketAddr>().unwrap())?;
+    listener.set_nonblocking(true)?;
 
-    println!(
-        "Server READY on http://{} | startup took {} µs",
-        addr,
-        start_instant.elapsed().as_micros()
+    let mut poll_fds: Vec<PollFd> = vec![PollFd {
+        fd: listener.as_raw_fd(),
+        events: POLLIN,
+        revents: 0,
+    }];
+
+    let mut connections: HashMap<usize, Connection> = HashMap::new();
+
+    println!("Listening on http://{}", listener.local_addr()?);
+
+    loop {
+        for pfd in poll_fds.iter_mut() {
+            pfd.revents = 0;
+        }
+
+        let nfds = unsafe {
+            libc::poll(
+                poll_fds.as_mut_ptr() as *mut libc::pollfd,
+                poll_fds.len() as libc::nfds_t,
+                1000,
+            )
+        };
+
+        println!("Connections size {}", connections.len());
+        if nfds < 0 {
+            let err = io::Error::last_os_error();
+            if err.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(err);
+        }
+
+        if nfds == 0 {
+            continue;
+        }
+
+        // Handle listener first (index 0)
+        if poll_fds[0].revents & POLLIN != 0 {
+            loop {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        let conn = Connection::new(stream)?;
+                        let idx = poll_fds.len();
+                        let fd = conn.socket.as_raw_fd();
+                        poll_fds.push(PollFd {
+                            fd,
+                            events: POLLIN,
+                            revents: 0,
+                        });
+                        connections.insert(idx, conn);
+                    }
+                    Err(ref err) if would_block(err) => break,
+                    Err(err) => {
+                        eprintln!("Accept error: {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Handle client connections
+        let mut indices_to_remove = Vec::new();
+
+        for i in 1..poll_fds.len() {
+            if poll_fds[i].revents == 0 {
+                continue;
+            }
+
+            let revents = poll_fds[i].revents;
+
+            if revents & (POLLERR | POLLHUP) != 0 {
+                indices_to_remove.push(i);
+                continue;
+            }
+
+            if revents & POLLOUT != 0 {
+                if let Some(conn) = connections.get_mut(&i) {
+                    match handle_write(conn) {
+                        Ok(true) => {
+                            poll_fds[i].events = POLLIN;
+                        }
+                        Ok(false) => {
+                            indices_to_remove.push(i);
+                        }
+                        Err(err) => {
+                            eprintln!("Write error: {}", err);
+                            indices_to_remove.push(i);
+                        }
+                    }
+                }
+            } else if revents & POLLIN != 0 {
+                if let Some(conn) = connections.get_mut(&i) {
+                    match handle_read(conn) {
+                        Ok(true) => {
+                            if !conn.write_buf.is_empty() {
+                                poll_fds[i].events = POLLOUT;
+                            }
+                        }
+                        Ok(false) => {
+                            indices_to_remove.push(i);
+                        }
+                        Err(err) => {
+                            eprintln!("Read error: {}", err);
+                            indices_to_remove.push(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        for i in indices_to_remove.iter().rev() {
+            connections.remove(i);
+            poll_fds.remove(*i);
+        }
+    }
+}
+
+fn handle_read(conn: &mut Connection) -> io::Result<bool> {
+    let mut buf = [0; 1024];
+    loop {
+        match conn.socket.read(&mut buf) {
+            Ok(0) => return Ok(false),
+            Ok(n) => conn.read_buf.extend_from_slice(&buf[..n]),
+            Err(ref err) if would_block(err) => break,
+            Err(err) => return Err(err),
+        }
+    }
+
+    if !conn.read_buf.windows(4).any(|w| w == b"\r\n\r\n") {
+        return Ok(true);
+    }
+
+    let request_text = String::from_utf8_lossy(&conn.read_buf).into_owned();
+    let request_line = request_text.lines().next().unwrap_or("");
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or("");
+    let raw_path = parts.next().unwrap_or("/");
+
+    conn.read_buf.clear();
+    conn.write_buf = if method == "GET" && raw_path == "/hello" {
+        text_response(200, "hello, world")
+    } else {
+         text_response(404, "Not found")
+    };
+
+    Ok(true)
+}
+
+fn handle_write(conn: &mut Connection) -> io::Result<bool> {
+    while !conn.write_buf.is_empty() {
+        match conn.socket.write(&conn.write_buf) {
+            Ok(0) => return Ok(false),
+            Ok(n) => {
+                conn.write_buf.drain(0..n);
+            }
+            Err(ref err) if would_block(err) => return Ok(true),
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(true)
+}
+
+fn would_block(err: &io::Error) -> bool {
+    matches!(err.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted)
+}
+
+fn text_response(status: u16, body: &str) -> Vec<u8> {
+    let reason = match status {
+        200 => "OK",
+        404 => "Not Found",
+        500 => "Internal Server Error",
+        _ => "",
+    };
+
+    let response = format!(
+        "HTTP/1.1 {} {}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n{}",
+        status,
+        reason,
+        body.len(),
+        body
     );
-
-    server.start()
+    response.into_bytes()
 }
