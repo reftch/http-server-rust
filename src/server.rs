@@ -4,8 +4,8 @@ use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
 use std::time::Instant;
 
-use crate::request::parse_request;
-use crate::response::text_response;
+use crate::request;
+use crate::response;
 
 const POLLIN: i16 = 0x001;
 const POLLOUT: i16 = 0x004;
@@ -92,12 +92,12 @@ impl Server {
             }
         }
 
-        if let Some((method, raw_path)) = parse_request(&conn.read_buf) {
+        if let Some((method, raw_path)) = request::parse(&conn.read_buf) {
             conn.read_buf.clear();
             conn.write_buf = if method == "GET" && raw_path == "/hello" {
-                text_response(200, "hello, world")
+                response::send(200, "hello, world")
             } else {
-                text_response(404, "Not found")
+                response::send(404, "Not found")
             };
         }
 
@@ -120,7 +120,7 @@ impl Server {
 
         let mut indices_to_remove = Vec::new();
 
-        let mut idx: i64 = 0;
+        // let mut idx: i64 = 0;
         loop {
             for pfd in poll_fds.iter_mut() {
                 pfd.revents = 0;
@@ -134,8 +134,8 @@ impl Server {
                 )
             };
 
-            idx += 1;
-            println!("Connections size {}, number {}", connections.len(), idx);
+            // idx += 1;
+            // println!("Connections size {}, number {}", connections.len(), idx);
 
             if nfds < 0 {
                 let err = io::Error::last_os_error();

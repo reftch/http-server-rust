@@ -1,6 +1,6 @@
 use std::str;
 
-pub fn parse_request(buf: &[u8]) -> Option<(String, String)> {
+pub fn parse(buf: &[u8]) -> Option<(String, String)> {
     if !buf.windows(4).any(|w| w == b"\r\n\r\n") {
         return None;
     }

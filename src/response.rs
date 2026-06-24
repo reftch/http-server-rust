@@ -1,4 +1,4 @@
-pub fn text_response(status: u16, body: &str) -> Vec<u8> {
+pub fn send(status: u16, body: &str) -> Vec<u8> {
     let reason = match status {
         200 => "OK",
         404 => "Not Found",
