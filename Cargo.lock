@@ -13,6 +13,7 @@ dependencies = [
  "http-core",
  "router",
  "server",
+ "utils",
 ]
 
 [[package]]
@@ -36,3 +37,7 @@ dependencies = [
  "libc",
  "router",
 ]
+
+[[package]]
+name = "utils"
+version = "0.1.0"

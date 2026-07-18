@@ -7,12 +7,14 @@ edition = "2024"
 http-core = { path = "crates/http-core" }
 router = { path = "crates/router" }
 server = { path = "crates/server" }
+utils = { path = "crates/utils" }
 
 [workspace]
 members = [
     "crates/http-core",
     "crates/router",
     "crates/server",
+    "crates/utils",
 ]
 
 [profile.release]

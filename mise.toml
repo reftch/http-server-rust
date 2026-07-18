@@ -7,7 +7,7 @@ description = "Run application in dev mode"
 env = { 
     "DEV_MODE" = "true", 
     "HOST" = "0.0.0.0", 
-    "PORT" = "8083",
+    "PORT" = "8080",
 }
 run = [
     { tasks = ["watch-app"] }, 
