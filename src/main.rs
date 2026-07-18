@@ -3,14 +3,18 @@ use server::Server;
 use router::Router;
 use utils::{get_env};
 
+
 fn main() -> std::io::Result<()> {
     let mut router = Router::new();
-    router.add_route("GET", "/hello", |_, _| {
-        (200, "hello, world".to_string())
+    router.add_route("GET", "/hello", |_, res| {
+        // println!("Handled request for path: {}", req.path);
+        res.status = 200;
+        res.body = "hello, world".to_string();
     });
 
-    router.add_route("GET", "/ping", |_, _| {
-        (200, "pong".to_string())
+    router.add_route("GET", "/ping", |_, res| {
+        res.status = 200;
+        res.body = "pong".to_string();
     });
 
     let router = Arc::new(router);

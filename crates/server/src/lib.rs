@@ -4,8 +4,7 @@ use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
 use std::time::Instant;
 
-use http_core::request;
-use http_core::response;
+use http_core::{Request, Response};
 use router::Router;
 
 use std::sync::Arc;
@@ -95,14 +94,14 @@ impl Server {
             }
         }
 
-        if let Some((method, raw_path)) = request::parse(&conn.read_buf) {
+        if let Some(request) = Request::parse(&conn.read_buf) {
             conn.read_buf.clear();
-            let (status, body) = if let Some((s, b)) = router.route(&method, &raw_path) {
-                (s, b)
+            let response = if let Some(resp) = router.route(&request) {
+                resp
             } else {
-                (404, "Not found".to_string())
+                Response::new(404, "Not found".to_string())
             };
-            conn.write_buf = response::send(status, &body);
+            conn.write_buf = response.to_bytes();
         }
 
         Ok(true)

@@ -1,5 +1,7 @@
-pub type HandlerResponse = (u16, String);
-pub type HandlerFn = Box<dyn Fn(&str, &str) -> HandlerResponse + Send + Sync>;
+use http_core::{Request, Response};
+
+pub type HandlerResponse = Response;
+pub type HandlerFn = Box<dyn Fn(&Request, &mut Response) + Send + Sync>;
 
 #[derive(Clone)]
 struct Route {
@@ -20,7 +22,7 @@ impl Router {
 
     pub fn add_route<F>(&mut self, method: &str, path: &str, handler: F)
     where
-        F: Fn(&str, &str) -> HandlerResponse + 'static + Send + Sync,
+        F: Fn(&Request, &mut Response) + 'static + Send + Sync,
     {
         self.routes.push((
             Route {
@@ -31,10 +33,12 @@ impl Router {
         ));
     }
 
-    pub fn route(&self, method: &str, path: &str) -> Option<HandlerResponse> {
+    pub fn route(&self, request: &Request) -> Option<HandlerResponse> {
         for (route, handler) in &self.routes {
-            if route.method == method && route.path == path {
-                return Some(handler(method, path));
+            if route.method == request.method && route.path == request.path {
+                let mut response = Response::new(200, ""); 
+                handler(request, &mut response);
+                return Some(response);
             }
         }
         None

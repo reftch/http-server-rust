@@ -6,4 +6,4 @@ services:
       dockerfile: ./docker/Dockerfile
     restart: unless-stopped
     ports:
-      - 8082:8082
+      - 8080:8080
