@@ -1,3 +1,9 @@
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_dummy() {}
+}
+
 use router::{Method, Router};
 use server::Server;
 use std::sync::Arc;
