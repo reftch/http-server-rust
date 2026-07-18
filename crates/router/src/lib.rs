@@ -103,7 +103,7 @@ impl Router {
 
     pub fn route(&self, request: &mut Request) -> Option<Response> {
         let mut current = &self.root;
-
+ 
         for part in request.path.split('/').filter(|s| !s.is_empty()) {
             if let Some(next) = current.children.get(part) {
                 current = next.as_ref();
@@ -114,14 +114,19 @@ impl Router {
                 return None;
             }
         }
-
+ 
         let method = Method::from_str(request.method.as_str())?;
-
+ 
         let handler = current.handlers[method.index()]?;
-
-        let mut response = Response::new(200, "");
+ 
+    let mut response = Response::new(200, "");
         handler(request, &mut response);
 
         Some(response)
     }
 }
+
+#[cfg(test)]
+mod tests;
+
+
