@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::net::TcpListener;

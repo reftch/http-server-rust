@@ -1,12 +1,15 @@
+#[cfg(test)]
+mod tests;
+
 use std::env;
 use std::str::FromStr;
 
-/// Gets an environment variable and parses it to type T. 
+/// Gets an environment variable and parses it to type T.
 /// Returns the default value if the variable is not set or cannot be parsed.
 ///
 /// This function also handles boolean-like values such as "yes"/"no" and "1"/"0".
-pub fn get_env<T>(key: &str, default: T) -> T 
-where 
+pub fn get_env<T>(key: &str, default: T) -> T
+where
     T: FromStr + Clone,
 {
     let val = match env::var(key) {
@@ -19,7 +22,7 @@ where
         return parsed;
     }
 
-    // Second, handle common boolean patterns like "yes"/"no" or "1"/"0" by 
+    // Second, handle common boolean patterns like "yes"/"no" or "1"/"0" by
     // converting them to "true"/"false" and attempting to parse again.
     let lower = val.to_lowercase();
     match lower.as_str() {
