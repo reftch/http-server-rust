@@ -24,8 +24,8 @@ impl Request {
         let method = parts.next().unwrap_or("").to_string();
         let path = parts.next().unwrap_or("/").to_string();
 
-        Some(Request { 
-            method, 
+        Some(Request {
+            method,
             path,
             params: HashMap::new(),
         })

@@ -15,7 +15,8 @@ fn main() -> std::io::Result<()> {
         if let Some(id) = req.params.get("id") {
             if let Ok(val) = id.parse::<i32>() {
                 res.status = 200;
-                res.body = (val + 1).to_string();
+                res.set_content_type(http_core::response::ContentType::JSON);
+                res.body = format!("{{\"value\":\"{}\"}}", val + 1);
             } else {
                 res.status = 400;
                 res.body = "Invalid ID".to_string();

@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod tests {
     use crate::Server;
-    use std::sync::Arc;
-    use std::net::TcpStream;
+    use http_core::{Request, Response};
+    use router::{Method, Router};
     use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
-    use http_core::{Request, Response};
-    use router::{Router, Method};
 
     fn hello_handler(_req: &Request, res: &mut Response) {
         res.body = "Hello, World!".to_string();
@@ -33,8 +33,12 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         let mut stream = TcpStream::connect(addr).unwrap();
-        stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-        stream.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        stream
+            .set_write_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
 
         // Send a basic HTTP GET request
         let request = format!("GET / HTTP/1.1\r\nHost: {}\r\n\r\n", addr.ip());
@@ -51,12 +55,11 @@ mod tests {
                     // A simple check to see if we've received the end of the response
                     if buffer.windows(4).any(|w| w == b"\r\n\r\n") {
                         // Check if there's more data after headers (the body)
-                        let header_end = buffer.windows(4)
-                            .position(|w| w == b"\r\n\r\n")
-                            .unwrap() + 4;
-                        
+                        let _header_end =
+                            buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+
                         // We might need to read a bit more to get the full body if it's not immediately available
-                        thread::sleep(Duration::from_millis(50));
+                        // thread::sleep(Duration::from_millis(50));
                         let mut extra = [0; 1024];
                         if let Ok(n) = stream.read(&mut extra) {
                             buffer.extend_from_slice(&extra[..n]);
@@ -90,8 +93,12 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         let mut stream = TcpStream::connect(addr).unwrap();
-        stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-        stream.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        stream
+            .set_write_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
 
         // Send a request for a non-existent path
         let request = format!("GET /not-found HTTP/1.1\r\nHost: {}\r\n\r\n", addr.ip());

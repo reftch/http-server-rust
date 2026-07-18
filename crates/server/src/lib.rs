@@ -103,7 +103,11 @@ impl Server {
             let response = if let Some(resp) = router.route(&mut request) {
                 resp
             } else {
-                Response::new(404, "Not found".to_string())
+                Response::new(
+                    404,
+                    "Not found".to_string(),
+                    http_core::response::ContentType::TEXT,
+                )
             };
             conn.write_buf = response.to_bytes();
         }
