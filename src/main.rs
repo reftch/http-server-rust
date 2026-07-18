@@ -1,11 +1,6 @@
-mod request;
-mod response;
-mod server;
-mod handler;
-
 use std::sync::Arc;
 use server::Server;
-use handler::Router;
+use router::Router;
 
 fn main() -> std::io::Result<()> {
     let mut router = Router::new();

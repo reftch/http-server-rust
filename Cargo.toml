@@ -1,10 +1,19 @@
 [package]
-name = "web-server"
+name = "http-server"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-libc = "0.2"
+http-core = { path = "crates/http-core" }
+router = { path = "crates/router" }
+server = { path = "crates/server" }
+
+[workspace]
+members = [
+    "crates/http-core",
+    "crates/router",
+    "crates/server",
+]
 
 [profile.release]
 lto = true

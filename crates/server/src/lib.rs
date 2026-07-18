@@ -4,9 +4,9 @@ use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
 use std::time::Instant;
 
-use crate::request;
-use crate::response;
-use crate::handler::Router;
+use http_core::request;
+use http_core::response;
+use router::Router;
 
 use std::sync::Arc;
 

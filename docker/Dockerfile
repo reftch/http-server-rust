@@ -12,6 +12,7 @@ RUN case "$TARGETARCH" in \
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
 COPY src ./src
 
 RUN case "$TARGETARCH" in \
@@ -19,9 +20,9 @@ RUN case "$TARGETARCH" in \
     arm64) TARGET_TRIPLE=aarch64-unknown-linux-musl ;; \
     esac && \
     cargo build --release --target "$TARGET_TRIPLE" && \
-    cp /app/target/$TARGET_TRIPLE/release/web-server /web-server
+    cp /app/target/$TARGET_TRIPLE/release/http-server /http-server
 
 FROM scratch
-COPY --from=builder /web-server /web-server
+COPY --from=builder /http-server /http-server
 
-ENTRYPOINT ["/web-server"]
+ENTRYPOINT ["/http-server"]
