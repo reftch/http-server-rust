@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 pub struct Request {
     pub method: String,
     pub path: String,
+    pub params: HashMap<String, String>,
 }
 
 impl Request {
@@ -21,6 +24,10 @@ impl Request {
         let method = parts.next().unwrap_or("").to_string();
         let path = parts.next().unwrap_or("/").to_string();
 
-        Some(Request { method, path })
+        Some(Request { 
+            method, 
+            path,
+            params: HashMap::new(),
+        })
     }
 }

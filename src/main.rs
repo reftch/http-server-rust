@@ -1,15 +1,20 @@
-use std::sync::Arc;
-use server::Server;
 use router::Router;
-use utils::{get_env};
-
+use server::Server;
+use std::sync::Arc;
+use utils::get_env;
 
 fn main() -> std::io::Result<()> {
     let mut router = Router::new();
-    router.add_route("GET", "/hello", |_, res| {
-        // println!("Handled request for path: {}", req.path);
-        res.status = 200;
-        res.body = "hello, world".to_string();
+    router.add_route("GET", "/api/v1/inc/:id", |req, res| {
+        if let Some(id) = req.params.get("id") {
+            if let Ok(val) = id.parse::<i32>() {
+                res.status = 200;
+                res.body = (val + 1).to_string();
+            } else {
+                res.status = 400;
+                res.body = "Invalid ID".to_string();
+            }
+        }
     });
 
     router.add_route("GET", "/ping", |_, res| {
@@ -24,6 +29,6 @@ fn main() -> std::io::Result<()> {
 
     let mut server = Server::new(&addr, router)?;
     server.run()?;
-    
+
     Ok(())
 }

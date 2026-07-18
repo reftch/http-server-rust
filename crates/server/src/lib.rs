@@ -96,7 +96,8 @@ impl Server {
 
         if let Some(request) = Request::parse(&conn.read_buf) {
             conn.read_buf.clear();
-            let response = if let Some(resp) = router.route(&request) {
+            let mut request = request;
+            let response = if let Some(resp) = router.route(&mut request) {
                 resp
             } else {
                 Response::new(404, "Not found".to_string())
