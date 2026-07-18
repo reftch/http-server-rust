@@ -6,6 +6,9 @@ use std::time::Instant;
 
 use crate::request;
 use crate::response;
+use crate::handler::Router;
+
+use std::sync::Arc;
 
 const POLLIN: i16 = 0x001;
 const POLLOUT: i16 = 0x004;
@@ -45,15 +48,15 @@ enum WriteState {
 pub struct Server {
     init_start: Instant,
     listener: TcpListener,
-    // poll_fds:  Vec<PollFd>,
+    router: Arc<Router>,
 }
 
 impl Server {
-    pub fn new(addr: &str) -> io::Result<Self> {
+    pub fn new(addr: &str, router: Arc<Router>) -> io::Result<Self> {
         Ok(Server {
             init_start: Instant::now(),
             listener: TcpListener::bind(addr.parse::<std::net::SocketAddr>().unwrap())?,
-            // poll_fds: vec![],
+            router,
         })
     }
 
@@ -81,7 +84,7 @@ impl Server {
         }
     }
 
-    fn handle_read(conn: &mut Connection) -> io::Result<bool> {
+    fn handle_read(conn: &mut Connection, router: &Router) -> io::Result<bool> {
         let mut buf = [0; 1024];
         loop {
             match conn.socket.read(&mut buf) {
@@ -94,11 +97,12 @@ impl Server {
 
         if let Some((method, raw_path)) = request::parse(&conn.read_buf) {
             conn.read_buf.clear();
-            conn.write_buf = if method == "GET" && raw_path == "/hello" {
-                response::send(200, "hello, world")
+            let (status, body) = if let Some((s, b)) = router.route(&method, &raw_path) {
+                (s, b)
             } else {
-                response::send(404, "Not found")
+                (404, "Not found".to_string())
             };
+            conn.write_buf = response::send(status, &body);
         }
 
         Ok(true)
@@ -116,11 +120,14 @@ impl Server {
         let mut connections: HashMap<i32, Connection> = HashMap::new();
 
         let startup_us = self.init_start.elapsed().as_micros();
-        println!("Server started on http://{} in {}µs", self.listener.local_addr()?, startup_us);
+        println!(
+            "Server started on http://{} in {}µs",
+            self.listener.local_addr()?,
+            startup_us
+        );
 
         let mut indices_to_remove = Vec::new();
 
-        // let mut idx: i64 = 0;
         loop {
             for pfd in poll_fds.iter_mut() {
                 pfd.revents = 0;
@@ -133,9 +140,6 @@ impl Server {
                     2000,
                 )
             };
-
-            // idx += 1;
-            // println!("Connections size {}, number {}", connections.len(), idx);
 
             if nfds < 0 {
                 let err = io::Error::last_os_error();
@@ -209,7 +213,7 @@ impl Server {
                 } else if revents & POLLIN != 0 {
                     let fd = poll_fds[i].fd;
                     if let Some(conn) = connections.get_mut(&fd) {
-                        match Self::handle_read(conn) {
+                        match Self::handle_read(conn, &self.router) {
                             Ok(true) => {
                                 if !conn.write_buf.is_empty() {
                                     poll_fds[i].events = POLLOUT;

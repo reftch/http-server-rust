@@ -17,11 +17,15 @@ run = [
 description = "Build and run application"
 quiet = true
 hide = true
-run = "cargo run --release"
+run = "cargo run"
 
 [tasks.watch-app]
 description = "Watch and run application"
 run = "mise w -r -w src app"
+
+[tasks.clean]
+description = "Watch and run application"
+run = "cargo clean"
 
 [tasks.prod-up]
 description = 'Bring up production environment'
