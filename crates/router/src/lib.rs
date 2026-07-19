@@ -1,5 +1,5 @@
 use request::Request;
-use response::{ContentType, Response};
+use response::{ContentType, Response, Status};
 use std::collections::HashMap;
 
 pub type HandlerResponse = Response;
@@ -120,7 +120,7 @@ impl Router {
 
         let handler = current.handlers[method.index()]?;
 
-        let mut response = Response::new(200, "", ContentType::TEXT);
+        let mut response = Response::new(Status::Ok, "", ContentType::TEXT);
         handler(request, &mut response);
 
         Some(response)

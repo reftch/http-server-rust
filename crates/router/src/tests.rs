@@ -25,7 +25,7 @@ fn test_add_and_route_basic() {
     };
 
     let res = router.route(&mut req).expect("Route should be found");
-    assert_eq!(res.status, 200);
+    assert_eq!(res.status, response::Status::Ok);
     assert_eq!(res.body, "Hello, World!");
 }
 
@@ -43,7 +43,7 @@ fn test_route_with_params() {
     };
 
     let res = router.route(&mut req).expect("Route should be found");
-    assert_eq!(res.status, 200);
+    assert_eq!(res.status, response::Status::Ok);
     assert_eq!(res.body, "Hello, alice!");
     assert_eq!(req.params.get("name").unwrap(), &"alice");
 }
