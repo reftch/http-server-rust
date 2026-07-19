@@ -211,33 +211,49 @@ impl Response {
         }
     }
 
-    pub fn add_header(&mut self, key: String, value: String) {
-        if !self.headers.contains_key(&key) {
-            self.headers.insert(key, value);
-        }
-    }
-
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut response = format!("HTTP/1.1 {} {}\r\n", self.status.as_u16(), self.status.reason_phrase());
-        
+        let mut response = format!(
+            "HTTP/1.1 {} {}\r\n",
+            self.status.as_u16(),
+            self.status.reason_phrase()
+        );
+
         // Add Content-Type header
         response.push_str(&format!("Content-Type: {}\r\n", self.content_type.as_str()));
-        
+
         // Add Content-Length header
         response.push_str(&format!("Content-Length: {}\r\n", self.body.len()));
-        
+
         // Add custom headers from the collection
         for (key, value) in &self.headers {
             response.push_str(&format!("{}: {}\r\n", key, value));
         }
-        
+
         response.push_str("\r\n");
         response.push_str(&self.body);
         response.into_bytes()
     }
 
-    pub fn set_content_type(&mut self, content_type: ContentType) {
+    pub fn set_header(&mut self, key: String, value: String) -> &mut Self {
+        if !self.headers.contains_key(&key) {
+            self.headers.insert(key, value);
+        }
+        self
+    }
+
+    pub fn set_status(&mut self, status: Status) -> &mut Self {
+        self.status = status;
+        self
+    }
+
+    pub fn set_body(&mut self, body: impl Into<String>) -> &mut Self {
+        self.body = body.into();
+        self
+    }
+
+    pub fn set_content_type(&mut self, content_type: ContentType) -> &mut Self {
         self.content_type = content_type;
+        self
     }
 }
 

@@ -4,29 +4,28 @@ mod tests {
     fn test_dummy() {}
 }
 
+use response::Status;
 use router::{Method, Router};
 use server::Server;
 use std::sync::Arc;
 use utils::get_env;
-use response::Status;
 
 fn main() -> std::io::Result<()> {
     let mut router = Router::new();
     router.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
         if let Some(id) = req.params.get("id") {
             if let Ok(val) = id.parse::<i32>() {
-                res.status = Status::Ok;
-                res.body = format!("{{\"value\":\"{}\"}}", val + 1);
+                res.set_content_type(response::ContentType::JSON)
+                    .set_body(format!("{{\"value\":{}}}", val + 1));
             } else {
-                res.status = Status::BadRequest;
-                res.body = "Invalid ID".to_string();
+                res.set_status(Status::BadRequest)
+                    .set_body("Invalid ID".to_string());
             }
         }
     });
 
     router.add_route(Method::GET, "/ping", |_, res| {
-        res.status = Status::Ok;
-        res.body = "pong".to_string();
+        res.set_body("pong".to_string());
     });
 
     let router = Arc::new(router);

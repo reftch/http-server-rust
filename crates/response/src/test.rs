@@ -1,4 +1,4 @@
-use crate::{Response, Status, ContentType};
+use crate::{ContentType, Response, Status};
 
 #[cfg(test)]
 mod tests {
@@ -33,11 +33,11 @@ mod tests {
     #[test]
     fn test_response_add_header() {
         let mut response = Response::new(Status::Ok, "OK", ContentType::TEXT);
-        response.add_header("X-Test".to_string(), "Value".to_string());
+        response.set_header("X-Test".to_string(), "Value".to_string());
         assert_eq!(response.headers.get("X-Test").unwrap(), "Value");
 
         // Ensure duplicate headers are not added (as per implementation)
-        response.add_header("X-Test".to_string(), "New Value".to_string());
+        response.set_header("X-Test".to_string(), "New Value".to_string());
         assert_eq!(response.headers.get("X-Test").unwrap(), "Value");
     }
 
@@ -49,9 +49,11 @@ mod tests {
 
         assert_eq!(Status::Ok.reason_phrase(), "OK");
         assert_eq!(Status::NotFound.reason_phrase(), "Not Found");
-        assert_eq!(Status::InternalServerError.reason_phrase(), "Internal Server Error");
+        assert_eq!(
+            Status::InternalServerError.reason_phrase(),
+            "Internal Server Error"
+        );
     }
-
 
     #[test]
     fn test_response_404() {
@@ -66,7 +68,7 @@ mod tests {
 #[test]
 fn test_response_to_bytes_with_headers() {
     let mut response = Response::new(Status::Ok, "OK", ContentType::TEXT);
-    response.add_header("Custom-Header".to_string(), "Custom-Value".to_string());
+    response.set_header("Custom-Header".to_string(), "Custom-Value".to_string());
     let bytes = response.to_bytes();
     let bytes_str = String::from_utf8(bytes).unwrap();
     assert!(bytes_str.contains("Custom-Header: Custom-Value\r\n"));
