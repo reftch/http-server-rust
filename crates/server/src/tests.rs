@@ -47,24 +47,13 @@ mod tests {
 
         // Read the response
         let mut buffer = Vec::new();
+        let mut chunk = [0; 1024];
         loop {
-            let mut chunk = [0; 1024];
             match stream.read(&mut chunk) {
                 Ok(0) => break,
                 Ok(n) => {
                     buffer.extend_from_slice(&chunk[..n]);
-                    // A simple check to see if we've received the end of the response
                     if buffer.windows(4).any(|w| w == b"\r\n\r\n") {
-                        // Check if there's more data after headers (the body)
-                        let _header_end =
-                            buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
-
-                        // We might need to read a bit more to get the full body if it's not immediately available
-                        // thread::sleep(Duration::from_millis(50));
-                        let mut extra = [0; 1024];
-                        if let Ok(n) = stream.read(&mut extra) {
-                            buffer.extend_from_slice(&extra[..n]);
-                        }
                         break;
                     }
                 }

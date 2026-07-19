@@ -63,13 +63,13 @@ mod tests {
         assert!(bytes_str.contains("HTTP/1.1 404 Not Found"));
         assert_eq!(response.content_type, ContentType::TEXT);
     }
-}
 
-#[test]
-fn test_response_to_bytes_with_headers() {
-    let mut response = Response::new(Status::Ok, "OK", ContentType::TEXT);
-    response.set_header("Custom-Header".to_string(), "Custom-Value".to_string());
-    let bytes = response.to_bytes();
-    let bytes_str = String::from_utf8(bytes).unwrap();
-    assert!(bytes_str.contains("Custom-Header: Custom-Value\r\n"));
+    #[test]
+    fn test_response_to_bytes_with_headers() {
+        let mut response = Response::new(Status::Ok, "OK", ContentType::TEXT);
+        response.set_header("Custom-Header".to_string(), "Custom-Value".to_string());
+        let bytes = response.to_bytes();
+        let bytes_str = String::from_utf8(bytes).unwrap();
+        assert!(bytes_str.contains("Custom-Header: Custom-Value\r\n"));
+    }
 }
