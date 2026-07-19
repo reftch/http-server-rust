@@ -5,6 +5,7 @@ pub struct Request<'a> {
     pub path: &'a str,
     pub headers: HashMap<&'a str, &'a str>,
     pub params: HashMap<&'a str, &'a str>,
+    pub query_params: HashMap<&'a str, &'a str>,
 }
 
 impl<'a> Request<'a> {
@@ -44,8 +45,33 @@ impl<'a> Request<'a> {
             return None;
         }
 
+        let first_space = request_line.find(' ')?;
+        let second_space = match request_line[first_space + 1..].find(' ') {
+            Some(i) => i + first_space + 1,
+            None => return None,
+        };
+
+        if second_space >= request_line.len().saturating_sub(1) {
+            return None;
+        }
+
         let method = &request_line[..first_space];
-        let path = &request_line[first_space + 1..second_space];
+        let full_path = &request_line[first_space + 1..second_space];
+
+        let (path, query_params) = match full_path.find('?') {
+            Some(pos) => {
+                let path = &full_path[..pos];
+                let mut query_params = HashMap::new();
+                let query_str = &full_path[pos + 1..];
+                for pair in query_str.split('&') {
+                    if let Some((key, value)) = pair.split_once('=') {
+                        query_params.insert(key, value);
+                    }
+                }
+                (path, query_params)
+            }
+            None => (full_path, HashMap::new()),
+        };
 
         if method.is_empty() || path.is_empty() {
             return None;
@@ -67,6 +93,7 @@ impl<'a> Request<'a> {
             path,
             headers,
             params: HashMap::with_capacity(4),
+            query_params,
         })
     }
 

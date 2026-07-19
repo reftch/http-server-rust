@@ -1,5 +1,5 @@
 use request::Request;
-use response::{Response, ContentType};
+use response::{ContentType, Response};
 use std::collections::HashMap;
 
 pub type HandlerResponse = Response;

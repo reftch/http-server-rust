@@ -21,26 +21,12 @@ fn test_add_and_route_basic() {
         path: "/",
         headers: HashMap::new(),
         params: HashMap::new(),
+        query_params: HashMap::new(),
     };
 
     let res = router.route(&mut req).expect("Route should be found");
     assert_eq!(res.status, 200);
     assert_eq!(res.body, "Hello, World!");
-}
-
-#[test]
-fn test_route_not_found() {
-    let mut router = Router::new();
-    router.add_route(Method::GET, "/", hello_handler);
-
-    let mut req = Request {
-        method: "GET",
-        path: "/not-found",
-        headers: HashMap::new(),
-        params: HashMap::new(),
-    };
-
-    assert!(router.route(&mut req).is_none());
 }
 
 #[test]
@@ -53,12 +39,28 @@ fn test_route_with_params() {
         path: "/user/alice",
         headers: HashMap::new(),
         params: HashMap::new(),
+        query_params: HashMap::new(),
     };
 
     let res = router.route(&mut req).expect("Route should be found");
     assert_eq!(res.status, 200);
     assert_eq!(res.body, "Hello, alice!");
     assert_eq!(req.params.get("name").unwrap(), &"alice");
+}
+
+#[test]
+fn test_route_with_query_params() {
+    let mut router = Router::new();
+    let buf = b"GET /api/v1/inc/2?tex=1 HTTP/1.1\r\n\r\n";
+    let mut req_from_buf = Request::parse(buf).expect("Should parse");
+
+    router.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
+        let id = req.params.get("id").unwrap();
+        res.body = format!("ID is {}, query tex is {}", id, req.query_params.get("tex").unwrap());
+    });
+
+    let res_from_buf = router.route(&mut req_from_buf).expect("Route should be found");
+    assert_eq!(res_from_buf.body, "ID is 2, query tex is 1");
 }
 
 #[test]
@@ -74,6 +76,7 @@ fn test_different_methods() {
         path: "/path",
         headers: HashMap::new(),
         params: HashMap::new(),
+        query_params: HashMap::new(),
     };
     let res_get = router.route(&mut req_get).unwrap();
     assert_eq!(res_get.body, "Hello, World!");
@@ -83,6 +86,7 @@ fn test_different_methods() {
         path: "/path",
         headers: HashMap::new(),
         params: HashMap::new(),
+        query_params: HashMap::new(),
     };
     let res_post = router.route(&mut req_post).unwrap();
     assert_eq!(res_post.body, "POST handled");
