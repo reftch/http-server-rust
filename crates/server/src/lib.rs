@@ -7,7 +7,8 @@ use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
 use std::time::Instant;
 
-use http_core::{Request, Response};
+use request::Request;
+use response::Response;
 use router::Router;
 
 use std::sync::Arc;
@@ -101,11 +102,11 @@ impl Server {
             let response = if let Some(resp) = router.route(&mut request) {
                 resp
             } else {
-                Response::new(
-                    404,
-                    "Not found".to_string(),
-                    http_core::response::ContentType::TEXT,
-                )
+                     Response::new(
+                         404,
+                         "Not found".to_string(),
+                         response::ContentType::TEXT,
+                     )
             };
 
             conn.write_buf = response.to_bytes();

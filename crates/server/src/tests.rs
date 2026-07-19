@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::Server;
-    use http_core::{Request, Response};
+    use request::Request;
+    use response::Response;
     use router::{Method, Router};
     use std::io::{Read, Write};
     use std::net::TcpStream;

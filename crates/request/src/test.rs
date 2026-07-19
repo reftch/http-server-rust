@@ -1,10 +1,7 @@
-use crate::request::Request;
-use crate::response::Response;
+use crate::Request;
 
 #[cfg(test)]
 mod tests {
-    use crate::response::ContentType;
-
     use super::*;
 
     #[test]
@@ -94,33 +91,5 @@ mod tests {
         let buf4 = b"GET / \r\n\r\n";
         let request4 = Request::parse(buf4);
         assert!(request4.is_none());
-    }
-
-    #[test]
-    fn test_response_new() {
-        let response = Response::new(200, "Hello World", ContentType::TEXT);
-        assert_eq!(response.status, 200);
-        assert_eq!(response.body, "Hello World");
-        assert_eq!(response.content_type, ContentType::TEXT);
-    }
-
-    #[test]
-    fn test_response_to_bytes() {
-        let response = Response::new(200, "OK", ContentType::TEXT);
-        let bytes = response.to_bytes();
-        let bytes_str = String::from_utf8(bytes).unwrap();
-        assert!(bytes_str.contains("HTTP/1.1 200 OK"));
-        assert!(bytes_str.contains("Content-Length: 2"));
-        assert!(bytes_str.ends_with("OK"));
-        assert_eq!(response.content_type, ContentType::TEXT);
-    }
-
-    #[test]
-    fn test_response_404() {
-        let response = Response::new(404, "Not Found", ContentType::TEXT);
-        let bytes = response.to_bytes();
-        let bytes_str = String::from_utf8(bytes).unwrap();
-        assert!(bytes_str.contains("HTTP/1.1 404 Not Found"));
-        assert_eq!(response.content_type, ContentType::TEXT);
     }
 }

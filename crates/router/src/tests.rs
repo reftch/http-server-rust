@@ -1,5 +1,6 @@
 use super::*;
-use http_core::{Request, Response};
+use request::Request;
+use response::Response;
 use std::collections::HashMap;
 
 fn hello_handler(_req: &Request, res: &mut Response) {

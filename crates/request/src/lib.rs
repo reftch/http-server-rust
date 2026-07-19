@@ -75,3 +75,6 @@ impl<'a> Request<'a> {
         self.headers.get("Content-Type").copied()
     }
 }
+
+#[cfg(test)]
+mod test;

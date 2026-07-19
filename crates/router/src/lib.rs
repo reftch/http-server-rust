@@ -1,4 +1,5 @@
-use http_core::{Request, Response, response::ContentType};
+use request::Request;
+use response::{Response, ContentType};
 use std::collections::HashMap;
 
 pub type HandlerResponse = Response;

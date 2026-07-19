@@ -103,3 +103,6 @@ impl Response {
         self.content_type = content_type;
     }
 }
+
+#[cfg(test)]
+mod test;

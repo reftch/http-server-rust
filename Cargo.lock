@@ -3,14 +3,11 @@
 version = 4
 
 [[package]]
-name = "http-core"
-version = "0.1.0"
-
-[[package]]
 name = "http-server"
 version = "0.1.0"
 dependencies = [
- "http-core",
+ "request",
+ "response",
  "router",
  "server",
  "utils",
@@ -23,18 +20,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
+name = "request"
+version = "0.1.0"
+
+[[package]]
+name = "response"
+version = "0.1.0"
+
+[[package]]
 name = "router"
 version = "0.1.0"
 dependencies = [
- "http-core",
+ "request",
+ "response",
 ]
 
 [[package]]
 name = "server"
 version = "0.1.0"
 dependencies = [
- "http-core",
  "libc",
+ "request",
+ "response",
  "router",
 ]
 

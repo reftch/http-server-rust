@@ -4,14 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-http-core = { path = "crates/http-core" }
+request = { path = "crates/request" }
+response = { path = "crates/response" }
 router = { path = "crates/router" }
 server = { path = "crates/server" }
 utils = { path = "crates/utils" }
 
 [workspace]
 members = [
-    "crates/http-core",
+    "crates/request",
+    "crates/response",
     "crates/router",
     "crates/server",
     "crates/utils",
