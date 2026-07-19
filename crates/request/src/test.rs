@@ -92,4 +92,22 @@ mod tests {
         let request4 = Request::parse(buf4);
         assert!(request4.is_none());
     }
+
+    #[test]
+    fn test_request_parse_query_params() {
+        let buf = b"GET /path?name=value&age=30 HTTP/1.1\r\n\r\n";
+        let request = Request::parse(buf).expect("Should parse valid request");
+        assert_eq!(request.path, "/path");
+        assert_eq!(*request.query_params.get("name").unwrap(), "value");
+        assert_eq!(*request.query_params.get("age").unwrap(), "30");
+    }
+
+    #[test]
+    fn test_request_parse_malformed_headers() {
+        // Header without colon should be skipped according to current implementation
+        let buf = b"GET / HTTP/1.1\r\nInvalidHeaderLine\r\nX-Valid: value\r\n\r\n";
+        let request = Request::parse(buf).expect("Should parse valid request");
+        assert_eq!(request.headers.len(), 1);
+        assert_eq!(*request.headers.get("X-Valid").unwrap(), "value");
+    }
 }

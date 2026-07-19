@@ -104,3 +104,72 @@ fn test_method_index() {
     assert_eq!(Method::GET.index(), 0);
     assert_eq!(Method::OPTIONS.index(), 6);
 }
+
+#[test]
+fn test_route_not_found() {
+    let mut router = Router::new();
+    router.add_route(Method::GET, "/path", hello_handler);
+
+    let mut req = Request {
+        method: "GET",
+        path: "/wrong-path",
+        headers: HashMap::new(),
+        params: HashMap::new(),
+        query_params: HashMap::new(),
+    };
+    assert!(router.route(&mut req).is_none());
+}
+
+#[test]
+fn test_route_wrong_method() {
+    let mut router = Router::new();
+    router.add_route(Method::GET, "/path", hello_handler);
+
+    let mut req = Request {
+        method: "POST",
+        path: "/path",
+        headers: HashMap::new(),
+        params: HashMap::new(),
+        query_params: HashMap::new(),
+    };
+    assert!(router.route(&mut req).is_none());
+}
+
+#[test]
+fn test_nested_routes() {
+    let mut router = Router::new();
+    router.add_route(Method::GET, "/api/v1/user/:name", |req, res| {
+        let name = req.params.get("name").unwrap();
+        res.body = format!("User: {}", name);
+    });
+
+    let mut req = Request {
+        method: "GET",
+        path: "/api/v1/user/bob",
+        headers: HashMap::new(),
+        params: HashMap::new(),
+        query_params: HashMap::new(),
+    };
+    let res = router.route(&mut req).expect("Route should be found");
+    assert_eq!(res.body, "User: bob");
+}
+
+#[test]
+fn test_param_with_multiple_parts() {
+    let mut router = Router::new();
+    router.add_route(Method::GET, "/a/:b/:c", |req, res| {
+        let b = req.params.get("b").unwrap();
+        let c = req.params.get("c").unwrap();
+        res.body = format!("{}/{}/{}", b, c, "end");
+    });
+
+    let mut req = Request {
+        method: "GET",
+        path: "/a/foo/bar",
+        headers: HashMap::new(),
+        params: HashMap::new(),
+        query_params: HashMap::new(),
+    };
+    let res = router.route(&mut req).expect("Route should be found");
+    assert_eq!(res.body, "foo/bar/end");
+}
