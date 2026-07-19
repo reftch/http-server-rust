@@ -35,10 +35,21 @@ impl<'a> Request<'a> {
         let request_line = lines.next()?;
 
         let first_space = request_line.find(' ')?;
-        let second_space = request_line[first_space + 1..].find(' ')? + first_space + 1;
+        let second_space = match request_line[first_space + 1..].find(' ') {
+            Some(i) => i + first_space + 1,
+            None => return None,
+        };
+
+        if second_space >= request_line.len().saturating_sub(1) {
+            return None;
+        }
 
         let method = &request_line[..first_space];
         let path = &request_line[first_space + 1..second_space];
+
+        if method.is_empty() || path.is_empty() {
+            return None;
+        }
 
         // Headers
         let mut headers = HashMap::with_capacity(12);
@@ -48,7 +59,7 @@ impl<'a> Request<'a> {
                 continue;
             };
 
-            headers.insert(key.trim(), value.trim_start());
+            headers.insert(key.trim(), value.trim());
         }
 
         Some(Self {
