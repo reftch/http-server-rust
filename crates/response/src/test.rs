@@ -42,11 +42,16 @@ mod tests {
     }
 
     #[test]
-    fn test_response_set_content_type() {
-        let mut response = Response::new(Status::Ok, "OK", ContentType::TEXT);
-        response.set_content_type(ContentType::JSON);
-        assert_eq!(response.content_type, ContentType::JSON);
+    fn test_status_helpers() {
+        assert_eq!(Status::Ok.as_u16(), 200);
+        assert_eq!(Status::NotFound.as_u16(), 404);
+        assert_eq!(Status::InternalServerError.as_u16(), 500);
+
+        assert_eq!(Status::Ok.reason_phrase(), "OK");
+        assert_eq!(Status::NotFound.reason_phrase(), "Not Found");
+        assert_eq!(Status::InternalServerError.reason_phrase(), "Internal Server Error");
     }
+
 
     #[test]
     fn test_response_404() {
