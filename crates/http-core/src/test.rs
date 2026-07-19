@@ -16,10 +16,27 @@ mod tests {
     }
 
     #[test]
+    fn test_request_parse_headers() {
+        let buf = b"POST / HTTP/1.1\r\nContent-Type: application/json\r\nX-Custom-Header: value\r\n\r\n";
+        let request = Request::parse(buf).expect("Should parse valid request");
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/");
+        assert_eq!(*request.headers.get("Content-Type").unwrap(), "application/json");
+        assert_eq!(*request.headers.get("X-Custom-Header").unwrap(), "value");
+    }
+
+    #[test]
     fn test_request_parse_invalid() {
         let buf = b"GET / HTTP/1.1\r\n";
         let request = Request::parse(buf);
         assert!(request.is_none());
+    }
+
+    #[test]
+    fn test_request_mime_type() {
+        let buf = b"POST / HTTP/1.1\r\nContent-Type: image/png\r\n\r\n";
+        let request = Request::parse(buf).expect("Should parse valid request");
+        assert_eq!(request.mime_type(), Some("image/png"));
     }
 
     #[test]

@@ -115,7 +115,7 @@ impl Router {
             }
         }
 
-        let method = Method::from_str(request.method.as_str())?;
+        let method = Method::from_str(request.method)?;
 
         let handler = current.handlers[method.index()]?;
 

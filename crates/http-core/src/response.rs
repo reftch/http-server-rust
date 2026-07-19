@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, PartialEq)]
 pub enum ContentType {
     HTML,
@@ -52,6 +54,7 @@ pub struct Response {
     pub status: u16,
     pub body: String,
     pub content_type: ContentType,
+    pub headers: HashMap<String, String>,
 }
 
 impl Response {
@@ -60,6 +63,13 @@ impl Response {
             status,
             body: body.into(),
             content_type,
+            headers: HashMap::new(),
+        }
+    }
+
+    pub fn add_header(&mut self, key: String, value: String) {
+        if !self.headers.contains_key(&key) {
+            self.headers.insert(key, value);
         }
     }
 
@@ -71,16 +81,21 @@ impl Response {
             _ => "",
         };
 
-        let response = format!(
-            "HTTP/1.1 {} {}\r\n\
-             Content-Type: {}\r\n\
-             Content-Length: {}\r\n\r\n{}",
-            self.status,
-            reason,
-            self.content_type.as_str(), // Call the new method here
-            self.body.len(),
-            self.body
-        );
+        let mut response = format!("HTTP/1.1 {} {}\r\n", self.status, reason);
+
+        // Add Content-Type header
+        response.push_str(&format!("Content-Type: {}\r\n", self.content_type.as_str()));
+
+        // Add Content-Length header
+        response.push_str(&format!("Content-Length: {}\r\n", self.body.len()));
+
+        // Add custom headers from the collection
+        for (key, value) in &self.headers {
+            response.push_str(&format!("{}: {}\r\n", key, value));
+        }
+
+        response.push_str("\r\n");
+        response.push_str(&self.body);
         response.into_bytes()
     }
 

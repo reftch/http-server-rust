@@ -97,9 +97,7 @@ impl Server {
             }
         }
 
-        if let Some(request) = Request::parse(&conn.read_buf) {
-            conn.read_buf.clear();
-            let mut request = request;
+        if let Some(mut request) = Request::parse(&conn.read_buf) {
             let response = if let Some(resp) = router.route(&mut request) {
                 resp
             } else {
@@ -109,7 +107,9 @@ impl Server {
                     http_core::response::ContentType::TEXT,
                 )
             };
+
             conn.write_buf = response.to_bytes();
+            conn.read_buf.clear();
         }
 
         Ok(true)

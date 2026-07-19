@@ -16,8 +16,9 @@ fn test_add_and_route_basic() {
     let mut router = Router::new();
     router.add_route(Method::GET, "/", hello_handler);
     let mut req = Request {
-        method: "GET".to_string(),
-        path: "/".to_string(),
+        method: "GET",
+        path: "/",
+        headers: HashMap::new(),
         params: HashMap::new(),
     };
 
@@ -32,8 +33,9 @@ fn test_route_not_found() {
     router.add_route(Method::GET, "/", hello_handler);
 
     let mut req = Request {
-        method: "GET".to_string(),
-        path: "/not-found".to_string(),
+        method: "GET",
+        path: "/not-found",
+        headers: HashMap::new(),
         params: HashMap::new(),
     };
 
@@ -46,8 +48,9 @@ fn test_route_with_params() {
     router.add_route(Method::GET, "/user/:name", param_handler);
 
     let mut req = Request {
-        method: "GET".to_string(),
-        path: "/user/alice".to_string(),
+        method: "GET",
+        path: "/user/alice",
+        headers: HashMap::new(),
         params: HashMap::new(),
     };
 
@@ -66,16 +69,18 @@ fn test_different_methods() {
     });
 
     let mut req_get = Request {
-        method: "GET".to_string(),
-        path: "/path".to_string(),
+        method: "GET",
+        path: "/path",
+        headers: HashMap::new(),
         params: HashMap::new(),
     };
     let res_get = router.route(&mut req_get).unwrap();
     assert_eq!(res_get.body, "Hello, World!");
 
     let mut req_post = Request {
-        method: "POST".to_string(),
-        path: "/path".to_string(),
+        method: "POST",
+        path: "/path",
+        headers: HashMap::new(),
         params: HashMap::new(),
     };
     let res_post = router.route(&mut req_post).unwrap();
