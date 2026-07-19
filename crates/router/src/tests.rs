@@ -8,7 +8,7 @@ fn hello_handler(_req: &Request, res: &mut Response) {
 }
 
 fn param_handler(req: &Request, res: &mut Response) {
-    let name = req.params.get("name").unwrap().clone();
+    let name = req.params.get("name").copied().unwrap();
     res.body = format!("Hello, {}!", name);
 }
 
@@ -58,7 +58,7 @@ fn test_route_with_params() {
     let res = router.route(&mut req).expect("Route should be found");
     assert_eq!(res.status, 200);
     assert_eq!(res.body, "Hello, alice!");
-    assert_eq!(req.params.get("name").unwrap(), "alice");
+    assert_eq!(req.params.get("name").unwrap(), &"alice");
 }
 
 #[test]

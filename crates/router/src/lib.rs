@@ -102,14 +102,14 @@ impl Router {
         current.handlers[method.index()] = Some(handler);
     }
 
-    pub fn route(&self, request: &mut Request) -> Option<Response> {
+    pub fn route<'a>(&'a self, request: &mut Request<'a>) -> Option<Response> {
         let mut current = &self.root;
 
         for part in request.path.split('/').filter(|s| !s.is_empty()) {
             if let Some(next) = current.children.get(part) {
                 current = next.as_ref();
             } else if let Some(pc) = &current.param_child {
-                request.params.insert(pc.name.to_string(), part.to_string());
+                request.params.insert(pc.name.as_ref(), part);
                 current = pc.node.as_ref();
             } else {
                 return None;

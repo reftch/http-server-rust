@@ -4,7 +4,7 @@ pub struct Request<'a> {
     pub method: &'a str,
     pub path: &'a str,
     pub headers: HashMap<&'a str, &'a str>,
-    pub params: HashMap<String, String>,
+    pub params: HashMap<&'a str, &'a str>,
 }
 
 impl<'a> Request<'a> {
