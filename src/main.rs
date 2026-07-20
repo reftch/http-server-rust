@@ -9,6 +9,7 @@ fn main() -> std::io::Result<()> {
     let addr = format!("{}:{}", host, port);
 
     let mut server = Server::new(&addr)?;
+    server.set_assets_path("./assets");
 
     server.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
         if let Some(id) = req.params.get("id") {

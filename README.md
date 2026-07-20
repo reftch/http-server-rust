@@ -1,2 +1,140 @@
-# http-server-rust
-Rust HTTP server implementation
+# HTTP Server in Rust
+
+A modular, high-performance HTTP/1.1 server implementation in Rust featuring an asynchronous engine and Trie-based routing.
+
+## Features
+
+- **Asynchronous Engine**: Uses non-blocking I/O for efficient concurrent connection handling.
+- **High-Performance Routing**: Trie-based router with support for dynamic path parameters (e.g., `/users/:id`).
+- **Static File Serving**: Built-in support for serving assets from a designated directory with automatic MIME type detection.
+- **Modular Architecture**: Separated into specialized crates for requests, responses, routing, and server logic.
+
+## Project Structure
+
+The project is organized into several core crates:
+
+### `request`
+Handles parsing and representation of incoming HTTP requests. It provides structured data including methods, paths, headers, query parameters, and path parameters extracted during routing.
+
+### `response`
+Manages the construction of HTTP responses, providing standard status codes, content types (MIME), and serialization into raw bytes compliant with HTTP/1.1.
+
+### `router`
+Implements a prefix-tree (Trie) based router for efficient path matching and dynamic parameter extraction.
+
+### `server`
+The core engine that manages TCP listeners, asynchronous I/O via system polling, and the orchestration of the request-response lifecycle.
+
+### `utils`
+Provides shared utility functions, such as environment variable parsing with default fallbacks.
+
+## Usage Example
+
+Here is a comprehensive example demonstrating how to initialize the server, configure static assets, add dynamic routes, and construct responses:
+
+```rust
+use response::{Status, ContentType};
+use router::Method;
+use server::Server;
+use utils::get_env;
+
+fn main() -> std::io::Result<()> {
+    // 1. Setup configuration from environment variables
+    let addr = format!("{}:{}", get_env("HOST", "0.0.0.0".to_string()), get_env("PORT", 8080));
+
+    // 2. Initialize the server
+    let mut server = Server::new(&addr)?;
+
+    // 3. Configure the static assets directory (fallback if no route matches)
+    server.set_assets_path("./assets");
+
+    // 4. Add a dynamic route with path parameters
+    // The ":id" part will be extracted into request.params
+    server.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
+        if let Some(id) = req.params.get("id") {
+            if let Ok(val) = id.parse::<i32>() {
+                // 5. Construct a successful response
+                res.set_status(Status::Ok)
+                    .set_content_type(ContentType::JSON)
+                    .set_body(format!("{{\"value\":{}}}", val + 1));
+            } else {
+                // Handle invalid input
+                res.set_status(Status::BadRequest)
+                    .set_body("Invalid ID - must be an integer".to_string());
+            }
+        }
+    });
+
+    // 6. Start the server loop
+    server.run()?;
+
+    Ok(())
+}
+```
+
+## API Reference Summary
+
+### `Server`
+
+| Method | Description |
+|--------|-------------|
+| `new(addr: &str) -> IoResult<Self>` | Creates a new server instance listening on the given address. |
+| `set_assets_path(path: &str)` | Sets the directory for serving static files. |
+| `add_route(method, path, handler)` | Registers a new route with a specific HTTP method and path. |
+| `run() -> IoResult<()>` | Starts the asynchronous event loop. |
+
+### `Response` (Builder Pattern)
+
+Once you have a mutable reference to the response in a handler, you can use:
+
+- `.set_status(Status)` : Updates the HTTP status code.
+- `.set_body(impl Into<Vec<u8>>)` : Sets the response body.
+- `.set_content_type(ContentType)` : Sets the MIME type.
+- `.set_header(key, value)` : Adds a custom header.
+
+### `Request`
+
+The `Request` object provided to handlers contains:
+
+- `.method`: The HTTP method (e.g., GET, POST).
+- `.path`: The requested URL path.
+- `.params`: A map of dynamic path parameters (e.g., `:id`).
+- `.headers`: A map of request headers.
+- `.query_params`: A map of URL query parameters.
+
+## Getting Started
+
+To build the project, ensure you have Rust and Cargo installed, then run:
+
+```bash
+cargo build
+```
+
+## Developer Guide
+
+This project uses [mise](https://mise.jdx.dev/) for task orchestration. You can use `mise run <task-name>` to execute the following commands:
+
+### Application Tasks
+
+| Task | Description | Command |
+|------|-------------|---------|
+| `app` | Build and run application | `cargo run` |
+| `dev` | Run in development mode with hot reloading | `watch app` (triggers `mise w`) |
+| `test` | Run all tests in the workspace | `cargo test --workspace` |
+| `clean` | Clean build artifacts | `cargo clean` |
+
+### Production & Docker Tasks
+
+| Task | Description | Command |
+|------|-------------|---------|
+| `prod-up` | Bring up production environment (Docker) | `docker compose up -d --build` |
+| `prod-down`| Take down production environment | `docker compose down` |
+
+## Getting Started
+
+To build the project, ensure you have Rust and Cargo installed, then run:
+
+```bash
+cargo build
+```
+

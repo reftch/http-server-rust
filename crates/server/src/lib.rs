@@ -175,6 +175,10 @@ impl Server {
         }
     }
 
+    pub fn set_assets_path(&mut self, path: &str) {
+        self.assets_path = PathBuf::from(path);
+    }
+
     pub fn add_route(&mut self, method: router::Method, path: &str, handler: router::HandlerFn) {
         if let Some(router) = std::sync::Arc::get_mut(&mut self.router) {
             router.add_route(method, path, handler);
