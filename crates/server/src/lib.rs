@@ -55,11 +55,12 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(addr: &str, router: Arc<Router>) -> io::Result<Self> {
-        Self::new_with_assets(addr, router, PathBuf::from("./assets"))
+    pub fn new(addr: &str) -> io::Result<Self> {
+        Self::new_with_assets(addr, PathBuf::from("./assets"))
     }
 
-    fn new_with_assets(addr: &str, router: Arc<Router>, assets_path: PathBuf) -> io::Result<Self> {
+    fn new_with_assets(addr: &str, assets_path: PathBuf) -> io::Result<Self> {
+        let router = Arc::new(Router::new());
         Ok(Server {
             init_start: Instant::now(),
             listener: TcpListener::bind(addr.parse::<std::net::SocketAddr>().unwrap())?,
@@ -171,6 +172,12 @@ impl Server {
             Some("woff2") => ContentType::WOFF2,
             Some("ttf") => ContentType::TTF,
             _ => ContentType::UNKNOWN,
+        }
+    }
+
+    pub fn add_route(&mut self, method: router::Method, path: &str, handler: router::HandlerFn) {
+        if let Some(router) = std::sync::Arc::get_mut(&mut self.router) {
+            router.add_route(method, path, handler);
         }
     }
 
