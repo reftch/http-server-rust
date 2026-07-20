@@ -24,5 +24,6 @@ RUN case "$TARGETARCH" in \
 
 FROM scratch
 COPY --from=builder /http-server /http-server
+COPY /assets /assets
 
 ENTRYPOINT ["/http-server"]
