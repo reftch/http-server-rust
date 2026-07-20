@@ -196,13 +196,13 @@ impl ContentType {
 
 pub struct Response {
     pub status: Status,
-    pub body: String,
+    pub body: Vec<u8>,
     pub content_type: ContentType,
     pub headers: HashMap<String, String>,
 }
 
 impl Response {
-    pub fn new(status: Status, body: impl Into<String>, content_type: ContentType) -> Self {
+    pub fn new(status: Status, body: impl Into<Vec<u8>>, content_type: ContentType) -> Self {
         Self {
             status,
             body: body.into(),
@@ -230,8 +230,9 @@ impl Response {
         }
 
         response.push_str("\r\n");
-        response.push_str(&self.body);
-        response.into_bytes()
+        let mut response_bytes = response.into_bytes();
+        response_bytes.extend(&self.body);
+        response_bytes
     }
 
     pub fn set_header(&mut self, key: String, value: String) -> &mut Self {
@@ -246,7 +247,7 @@ impl Response {
         self
     }
 
-    pub fn set_body(&mut self, body: impl Into<String>) -> &mut Self {
+    pub fn set_body(&mut self, body: impl Into<Vec<u8>>) -> &mut Self {
         self.body = body.into();
         self
     }

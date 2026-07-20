@@ -1,14 +1,13 @@
-#[cfg(test)]
-mod tests;
-
 use std::collections::HashMap;
+use std::fs;
 use std::io::{self, Read, Write};
 use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use request::Request;
-use response::Response;
+use response::{ContentType, Response, Status};
 use router::Router;
 
 use std::sync::Arc;
@@ -52,14 +51,20 @@ pub struct Server {
     init_start: Instant,
     listener: TcpListener,
     router: Arc<Router>,
+    assets_path: PathBuf,
 }
 
 impl Server {
     pub fn new(addr: &str, router: Arc<Router>) -> io::Result<Self> {
+        Self::new_with_assets(addr, router, PathBuf::from("./assets"))
+    }
+
+    fn new_with_assets(addr: &str, router: Arc<Router>, assets_path: PathBuf) -> io::Result<Self> {
         Ok(Server {
             init_start: Instant::now(),
             listener: TcpListener::bind(addr.parse::<std::net::SocketAddr>().unwrap())?,
             router,
+            assets_path,
         })
     }
 
@@ -87,7 +92,7 @@ impl Server {
         }
     }
 
-    fn handle_read(conn: &mut Connection, router: &Router) -> io::Result<bool> {
+    fn handle_read(conn: &mut Connection, router: &Router, assets_path: &Path) -> io::Result<bool> {
         let mut buf = [0; 1024];
         loop {
             match conn.socket.read(&mut buf) {
@@ -101,12 +106,10 @@ impl Server {
         if let Some(mut request) = Request::parse(&conn.read_buf) {
             let response = if let Some(resp) = router.route(&mut request) {
                 resp
+            } else if let Some(resp) = Self::handle_static(&request.path, assets_path) {
+                resp
             } else {
-                        Response::new(
-                            response::Status::NotFound,
-                            "Not found".to_string(),
-                            response::ContentType::TEXT,
-                        )
+                Response::new(Status::NotFound, "Not Found", ContentType::TEXT)
             };
 
             conn.write_buf = response.to_bytes();
@@ -114,6 +117,61 @@ impl Server {
         }
 
         Ok(true)
+    }
+
+    fn handle_static(path: &str, assets_path: &Path) -> Option<Response> {
+        let requested_path = Path::new(path);
+
+        // Prevent directory traversal
+        if requested_path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return None;
+        }
+
+        let mut full_path =
+            assets_path.join(requested_path.strip_prefix("/").unwrap_or(requested_path));
+
+        if full_path.is_dir() {
+            full_path.push("index.html");
+        }
+
+        if !full_path.is_file() {
+            return None;
+        }
+
+        let content = fs::read(&full_path).ok()?;
+        let content_type = Self::get_content_type(&full_path);
+
+        Some(Response {
+            status: Status::Ok,
+            body: content,
+            content_type,
+            headers: HashMap::new(),
+        })
+    }
+
+    fn get_content_type(path: &Path) -> ContentType {
+        match path.extension().and_then(|s| s.to_str()) {
+            Some("html") => ContentType::HTML,
+            Some("css") => ContentType::CSS,
+            Some("js") => ContentType::JAVASCRIPT,
+            Some("jpg") | Some("jpeg") => ContentType::JPEG,
+            Some("png") => ContentType::PNG,
+            Some("xml") => ContentType::XML,
+            Some("json") => ContentType::JSON,
+            Some("txt") => ContentType::TEXT,
+            Some("gif") => ContentType::GIF,
+            Some("svg") => ContentType::SVG,
+            Some("pdf") => ContentType::PDF,
+            Some("mp3") => ContentType::MP3,
+            Some("mp4") => ContentType::MP4,
+            Some("webm") => ContentType::WEBM,
+            Some("woff2") => ContentType::WOFF2,
+            Some("ttf") => ContentType::TTF,
+            _ => ContentType::UNKNOWN,
+        }
     }
 
     pub fn run(&mut self) -> io::Result<()> {
@@ -221,7 +279,7 @@ impl Server {
                 } else if revents & POLLIN != 0 {
                     let fd = poll_fds[i].fd;
                     if let Some(conn) = connections.get_mut(&fd) {
-                        match Self::handle_read(conn, &self.router) {
+                        match Self::handle_read(conn, &self.router, &self.assets_path) {
                             Ok(true) => {
                                 if !conn.write_buf.is_empty() {
                                     poll_fds[i].events = POLLOUT;

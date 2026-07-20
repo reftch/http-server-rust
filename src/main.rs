@@ -24,10 +24,6 @@ fn main() -> std::io::Result<()> {
         }
     });
 
-    router.add_route(Method::GET, "/ping", |_, res| {
-        res.set_body("pong".to_string());
-    });
-
     let router = Arc::new(router);
     let host = get_env("HOST", "0.0.0.0".to_string());
     let port = get_env("PORT", 8080);
