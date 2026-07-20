@@ -63,7 +63,6 @@ impl TrieNode {
         Self {
             children: HashMap::new(),
             param_child: None,
-            // TODO: fixed handler number, should be fix
             handlers: [None; METHOD_COUNT],
         }
     }
