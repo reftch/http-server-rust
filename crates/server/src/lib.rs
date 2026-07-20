@@ -103,7 +103,7 @@ impl Server {
         if let Some(mut request) = Request::parse(&conn.read_buf) {
             let response = if let Some(resp) = router.route(&mut request) {
                 resp
-            } else if let Some(resp) = Self::handle_static(&request.path, assets_path) {
+            } else if let Some(resp) = Self::handle_static(request.path, assets_path) {
                 resp
             } else {
                 Response::new(Status::NotFound, "Not Found", ContentType::TEXT)
@@ -252,12 +252,12 @@ impl Server {
             // Handle client connections
             indices_to_remove.clear();
 
-            for i in 1..poll_fds.len() {
-                if poll_fds[i].revents == 0 {
+            for (i, item) in poll_fds.iter_mut().enumerate().skip(1) {
+                if item.revents == 0 {
                     continue;
                 }
 
-                let revents = poll_fds[i].revents;
+                let revents = item.revents;
 
                 if revents & (POLLERR | POLLHUP) != 0 {
                     indices_to_remove.push(i);
@@ -265,11 +265,11 @@ impl Server {
                 }
 
                 if revents & POLLOUT != 0 {
-                    let fd = poll_fds[i].fd;
+                    let fd = item.fd; // Accessing field directly from the item
                     if let Some(conn) = connections.get_mut(&fd) {
                         match Self::handle_write(conn) {
                             Ok(WriteState::Done) => {
-                                poll_fds[i].events = POLLIN;
+                                item.events = POLLIN; // Update via mutable reference
                             }
                             Ok(WriteState::Continue) => {
                                 // still have data to write; keep POLLOUT
@@ -284,12 +284,12 @@ impl Server {
                         }
                     }
                 } else if revents & POLLIN != 0 {
-                    let fd = poll_fds[i].fd;
+                    let fd = item.fd; // Accessing field directly from the item
                     if let Some(conn) = connections.get_mut(&fd) {
                         match Self::handle_read(conn, &self.router, &self.assets_path) {
                             Ok(true) => {
                                 if !conn.write_buf.is_empty() {
-                                    poll_fds[i].events = POLLOUT;
+                                    item.events = POLLOUT; // Update via mutable reference
                                 }
                             }
                             Ok(false) => {

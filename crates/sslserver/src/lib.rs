@@ -158,7 +158,7 @@ impl Server {
         if let Some(mut request) = Request::parse(&conn.read_buf) {
             let response = if let Some(resp) = router.route(&mut request) {
                 resp
-            } else if let Some(resp) = Self::handle_static(&request.path, assets_path) {
+            } else if let Some(resp) = Self::handle_static(request.path, assets_path) {
                 resp
             } else {
                 Response::new(Status::NotFound, "Not Found", ContentType::TEXT)
@@ -333,13 +333,13 @@ impl Server {
             //
             // Client connections
             //
-            for i in 1..poll_fds.len() {
-                if poll_fds[i].revents == 0 {
+            for (i, item) in poll_fds.iter_mut().enumerate().skip(1) {
+                if item.revents == 0 {
                     continue;
                 }
 
-                let fd = poll_fds[i].fd;
-                let events = poll_fds[i].revents;
+                let fd = item.fd; // No need for poll_fds[i].fd
+                let events = item.revents;
 
                 if events & (POLLERR | POLLHUP) != 0 {
                     indices_to_remove.push(i);
@@ -347,62 +347,53 @@ impl Server {
                 }
 
                 if let Some(conn) = connections.get_mut(&fd) {
-                    //
                     // Finish TLS handshake
-                    //
                     if matches!(conn.tls.as_ref(), Some(TlsState::Handshaking(_))) {
                         match Self::continue_handshake(conn) {
                             Ok(true) => {
-                                poll_fds[i].events = POLLIN;
+                                item.events = POLLIN; // Use 'item' instead of 'poll_fds[i]'
                             }
                             Ok(false) => {
-                                poll_fds[i].events = POLLIN | POLLOUT;
+                                item.events = POLLIN | POLLOUT;
                                 continue;
                             }
                             Err(_) => {
-                                // eprintln!("Handshake error: {}", err);
                                 indices_to_remove.push(i);
                                 continue;
                             }
                         }
                     }
 
-                    //
                     // Write HTTPS response
-                    //
                     if events & POLLOUT != 0 {
                         match Self::handle_write(conn) {
                             Ok(WriteState::Done) => {
-                                poll_fds[i].events = POLLIN;
+                                item.events = POLLIN;
                             }
                             Ok(WriteState::Continue) => {
-                                poll_fds[i].events = POLLOUT;
+                                item.events = POLLOUT;
                             }
                             Ok(WriteState::Close) => {
                                 indices_to_remove.push(i);
                             }
                             Err(_) => {
-                                // eprintln!("Write error: {}", err);
                                 indices_to_remove.push(i);
                             }
                         }
                     }
 
-                    //
                     // Read HTTPS request
-                    //
                     if events & POLLIN != 0 {
                         match Self::handle_read(conn, &self.router, &self.assets_path) {
                             Ok(true) => {
                                 if !conn.write_buf.is_empty() {
-                                    poll_fds[i].events = POLLOUT;
+                                    item.events = POLLOUT;
                                 }
                             }
                             Ok(false) => {
                                 indices_to_remove.push(i);
                             }
                             Err(_) => {
-                                // eprintln!("Read error: {}", err);
                                 indices_to_remove.push(i);
                             }
                         }
@@ -439,7 +430,7 @@ impl Server {
                     conn.tls = Some(TlsState::Handshaking(mid));
                     Ok(false)
                 }
-                Err(e) => Err(io::Error::new(io::ErrorKind::Other, format!("{:?}", e))),
+                Err(e) => Err(io::Error::other(format!("{:?}", e))),
             },
         }
     }
