@@ -8,7 +8,9 @@ request = { path = "crates/request" }
 response = { path = "crates/response" }
 router = { path = "crates/router" }
 server = { path = "crates/server" }
+sslserver = { path = "crates/sslserver" }
 utils = { path = "crates/utils" }
+
 
 [workspace]
 members = [
@@ -16,6 +18,7 @@ members = [
     "crates/response",
     "crates/router",
     "crates/server",
+    "crates/sslserver",
     "crates/utils",
 ]
 

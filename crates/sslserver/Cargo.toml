@@ -1,5 +1,5 @@
 [package]
-name = "server"
+name = "sslserver"
 version = "0.1.0"
 edition = "2024"
 
@@ -8,4 +8,4 @@ request = { path = "../request" }
 response = { path = "../response" }
 router = { path = "../router" }
 libc = "0.2"
-
+openssl = "0.10"

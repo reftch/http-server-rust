@@ -1,8 +1,11 @@
 use libc::{POLLERR, POLLHUP, POLLIN, POLLOUT};
+use openssl::ssl::{
+    HandshakeError, MidHandshakeSslStream, SslAcceptor, SslFiletype, SslMethod, SslStream,
+};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -20,20 +23,31 @@ struct PollFd {
     revents: i16,
 }
 
+enum TlsState {
+    Handshaking(MidHandshakeSslStream<TcpStream>),
+    Connected(SslStream<TcpStream>),
+}
+
 struct Connection {
-    socket: std::net::TcpStream,
+    tls: Option<TlsState>,
     read_buf: Vec<u8>,
     write_buf: Vec<u8>,
 }
 
 impl Connection {
-    fn new(socket: std::net::TcpStream) -> io::Result<Connection> {
-        socket.set_nonblocking(true)?;
-        Ok(Connection {
-            socket,
+    fn new(tls: TlsState) -> Self {
+        Self {
+            tls: Some(tls),
             read_buf: Vec::with_capacity(1024),
             write_buf: Vec::new(),
-        })
+        }
+    }
+
+    fn fd(&self) -> i32 {
+        match self.tls.as_ref().unwrap() {
+            TlsState::Connected(s) => s.get_ref().as_raw_fd(),
+            TlsState::Handshaking(s) => s.get_ref().as_raw_fd(),
+        }
     }
 }
 
@@ -43,25 +57,35 @@ enum WriteState {
     Close,
 }
 
-pub struct Server {
+pub struct SSLServer {
     init_start: Instant,
     listener: TcpListener,
     router: Arc<Router>,
     assets_path: PathBuf,
+    acceptor: Arc<SslAcceptor>,
 }
 
-impl Server {
+impl SSLServer {
     pub fn new(addr: &str) -> io::Result<Self> {
         Self::new_with_assets(addr, PathBuf::from("./assets"))
     }
 
     fn new_with_assets(addr: &str, assets_path: PathBuf) -> io::Result<Self> {
         let router = Arc::new(Router::new());
-        Ok(Server {
+        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+
+        builder
+            .set_private_key_file("key.pem", SslFiletype::PEM)
+            .unwrap();
+
+        builder.set_certificate_chain_file("cert.pem").unwrap();
+
+        Ok(SSLServer {
             init_start: Instant::now(),
             listener: TcpListener::bind(addr.parse::<std::net::SocketAddr>().unwrap())?,
             router,
             assets_path,
+            acceptor: Arc::new(builder.build()),
         })
     }
 
@@ -78,25 +102,56 @@ impl Server {
                 return Ok(WriteState::Done);
             }
 
-            match conn.socket.write(&conn.write_buf) {
-                Ok(0) => return Ok(WriteState::Close),
-                Ok(n) => {
-                    conn.write_buf.drain(0..n);
+            match conn.tls.as_mut().unwrap() {
+                TlsState::Handshaking(_) => {
+                    // TLS is not ready yet
+                    return Ok(WriteState::Continue);
                 }
-                Err(ref err) if Self::would_block(err) => return Ok(WriteState::Continue),
-                Err(err) => return Err(err),
+
+                TlsState::Connected(stream) => match stream.write(&conn.write_buf) {
+                    Ok(0) => {
+                        return Ok(WriteState::Close);
+                    }
+                    Ok(n) => {
+                        conn.write_buf.drain(0..n);
+                    }
+                    Err(ref err) if Self::would_block(err) => {
+                        return Ok(WriteState::Continue);
+                    }
+                    Err(err) => {
+                        return Err(err);
+                    }
+                },
             }
         }
     }
 
     fn handle_read(conn: &mut Connection, router: &Router, assets_path: &Path) -> io::Result<bool> {
-        let mut buf = [0; 1024];
+        let mut buf = [0u8; 1024];
+
         loop {
-            match conn.socket.read(&mut buf) {
-                Ok(0) => return Ok(false),
-                Ok(n) => conn.read_buf.extend_from_slice(&buf[..n]),
-                Err(ref err) if Self::would_block(err) => break,
-                Err(err) => return Err(err),
+            let stream = match conn.tls.as_mut().unwrap() {
+                TlsState::Connected(stream) => stream,
+
+                // TLS handshake is not complete yet
+                TlsState::Handshaking(_) => {
+                    return Ok(true);
+                }
+            };
+
+            match stream.read(&mut buf) {
+                Ok(0) => {
+                    return Ok(false);
+                }
+                Ok(n) => {
+                    conn.read_buf.extend_from_slice(&buf[..n]);
+                }
+                Err(ref err) if Self::would_block(err) => {
+                    break;
+                }
+                Err(err) => {
+                    return Err(err);
+                }
             }
         }
 
@@ -193,8 +248,9 @@ impl Server {
         let mut connections: HashMap<i32, Connection> = HashMap::new();
 
         let startup_us = self.init_start.elapsed().as_micros();
+
         println!(
-            "Server started on http://{} in {}µs",
+            "HTTPS server started on https://{} in {}µs",
             self.listener.local_addr()?,
             startup_us
         );
@@ -216,9 +272,11 @@ impl Server {
 
             if nfds < 0 {
                 let err = io::Error::last_os_error();
+
                 if err.kind() == io::ErrorKind::Interrupted {
                     continue;
                 }
+
                 return Err(err);
             }
 
@@ -226,21 +284,44 @@ impl Server {
                 continue;
             }
 
-            // Handle listener first (index 0)
+            //
+            // Accept HTTPS clients
+            //
             if poll_fds[0].revents & POLLIN != 0 {
                 loop {
                     match self.listener.accept() {
-                        Ok((stream, _)) => {
-                            let conn = Connection::new(stream)?;
-                            let fd = conn.socket.as_raw_fd();
+                        Ok((stream, _addr)) => {
+                            stream.set_nonblocking(true)?;
+
+                            let tls_state = match self.acceptor.accept(stream) {
+                                Ok(ssl) => TlsState::Connected(ssl),
+
+                                Err(HandshakeError::WouldBlock(mid)) => TlsState::Handshaking(mid),
+
+                                Err(err) => {
+                                    eprintln!("TLS handshake failed: {:?}", err);
+                                    continue;
+                                }
+                            };
+
+                            let conn = Connection::new(tls_state);
+
+                            let fd = conn.fd();
+
                             poll_fds.push(PollFd {
                                 fd,
-                                events: POLLIN,
+                                // handshake needs both directions
+                                events: POLLIN | POLLOUT,
                                 revents: 0,
                             });
+
                             connections.insert(fd, conn);
                         }
-                        Err(ref err) if Self::would_block(err) => break,
+
+                        Err(ref err) if Self::would_block(err) => {
+                            break;
+                        }
+
                         Err(err) => {
                             eprintln!("Accept error: {}", err);
                             break;
@@ -249,30 +330,55 @@ impl Server {
                 }
             }
 
-            // Handle client connections
             indices_to_remove.clear();
 
+            //
+            // Client connections
+            //
             for i in 1..poll_fds.len() {
                 if poll_fds[i].revents == 0 {
                     continue;
                 }
 
-                let revents = poll_fds[i].revents;
+                let fd = poll_fds[i].fd;
+                let events = poll_fds[i].revents;
 
-                if revents & (POLLERR | POLLHUP) != 0 {
+                if events & (POLLERR | POLLHUP) != 0 {
                     indices_to_remove.push(i);
                     continue;
                 }
 
-                if revents & POLLOUT != 0 {
-                    let fd = poll_fds[i].fd;
-                    if let Some(conn) = connections.get_mut(&fd) {
+                if let Some(conn) = connections.get_mut(&fd) {
+                    //
+                    // Finish TLS handshake
+                    //
+                    if matches!(conn.tls.as_ref(), Some(TlsState::Handshaking(_))) {
+                        match Self::continue_handshake(conn) {
+                            Ok(true) => {
+                                poll_fds[i].events = POLLIN;
+                            }
+                            Ok(false) => {
+                                poll_fds[i].events = POLLIN | POLLOUT;
+                                continue;
+                            }
+                            Err(err) => {
+                                eprintln!("Handshake error: {}", err);
+                                indices_to_remove.push(i);
+                                continue;
+                            }
+                        }
+                    }
+
+                    //
+                    // Write HTTPS response
+                    //
+                    if events & POLLOUT != 0 {
                         match Self::handle_write(conn) {
                             Ok(WriteState::Done) => {
                                 poll_fds[i].events = POLLIN;
                             }
                             Ok(WriteState::Continue) => {
-                                // still have data to write; keep POLLOUT
+                                poll_fds[i].events = POLLOUT;
                             }
                             Ok(WriteState::Close) => {
                                 indices_to_remove.push(i);
@@ -283,9 +389,11 @@ impl Server {
                             }
                         }
                     }
-                } else if revents & POLLIN != 0 {
-                    let fd = poll_fds[i].fd;
-                    if let Some(conn) = connections.get_mut(&fd) {
+
+                    //
+                    // Read HTTPS request
+                    //
+                    if events & POLLIN != 0 {
                         match Self::handle_read(conn, &self.router, &self.assets_path) {
                             Ok(true) => {
                                 if !conn.write_buf.is_empty() {
@@ -304,11 +412,37 @@ impl Server {
                 }
             }
 
+            //
+            // Remove closed connections
+            //
             for i in indices_to_remove.iter().rev() {
                 let fd = poll_fds[*i].fd;
                 connections.remove(&fd);
                 poll_fds.remove(*i);
             }
+        }
+    }
+
+    fn continue_handshake(conn: &mut Connection) -> io::Result<bool> {
+        let state = conn.tls.take().unwrap();
+
+        match state {
+            TlsState::Connected(stream) => {
+                conn.tls = Some(TlsState::Connected(stream));
+                Ok(true)
+            }
+
+            TlsState::Handshaking(mid) => match mid.handshake() {
+                Ok(stream) => {
+                    conn.tls = Some(TlsState::Connected(stream));
+                    Ok(true)
+                }
+                Err(HandshakeError::WouldBlock(mid)) => {
+                    conn.tls = Some(TlsState::Handshaking(mid));
+                    Ok(false)
+                }
+                Err(e) => Err(io::Error::new(io::ErrorKind::Other, format!("{:?}", e))),
+            },
         }
     }
 }
