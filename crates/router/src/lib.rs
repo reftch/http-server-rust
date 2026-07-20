@@ -120,7 +120,7 @@ impl Router {
 
         let handler = current.handlers[method.index()]?;
 
-        let mut response = Response::new(Status::Ok, "", ContentType::TEXT);
+        let mut response = Response::new(Status::Ok, b"", ContentType::TEXT);
         handler(request, &mut response);
 
         Some(response)

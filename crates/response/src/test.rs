@@ -8,7 +8,7 @@ mod tests {
     fn test_response_new() {
         let response = Response::new(Status::Ok, "Hello World", ContentType::TEXT);
         assert_eq!(response.status, Status::Ok);
-        assert_eq!(response.body, "Hello World");
+        assert_eq!(response.body, b"Hello World".to_vec());
         assert_eq!(response.content_type, ContentType::TEXT);
     }
 
