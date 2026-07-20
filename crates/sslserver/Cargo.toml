@@ -9,3 +9,4 @@ response = { path = "../response" }
 router = { path = "../router" }
 libc = "0.2"
 openssl = "0.10"
+#openssl = { version = "0.10", features = ["vendored"] }

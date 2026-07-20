@@ -223,6 +223,7 @@ impl Response {
 
         // Add Content-Length header
         response.push_str(&format!("Content-Length: {}\r\n", self.body.len()));
+        response.push_str(&format!("Connection: keep-alive\r\n"));
 
         // Add custom headers from the collection
         for (key, value) in &self.headers {

@@ -57,7 +57,7 @@ enum WriteState {
     Close,
 }
 
-pub struct SSLServer {
+pub struct Server {
     init_start: Instant,
     listener: TcpListener,
     router: Arc<Router>,
@@ -65,7 +65,7 @@ pub struct SSLServer {
     acceptor: Arc<SslAcceptor>,
 }
 
-impl SSLServer {
+impl Server {
     pub fn new(addr: &str) -> io::Result<Self> {
         Self::new_with_assets(addr, PathBuf::from("./assets"))
     }
@@ -80,7 +80,7 @@ impl SSLServer {
 
         builder.set_certificate_chain_file("cert.pem").unwrap();
 
-        Ok(SSLServer {
+        Ok(Server {
             init_start: Instant::now(),
             listener: TcpListener::bind(addr.parse::<std::net::SocketAddr>().unwrap())?,
             router,
@@ -295,11 +295,9 @@ impl SSLServer {
 
                             let tls_state = match self.acceptor.accept(stream) {
                                 Ok(ssl) => TlsState::Connected(ssl),
-
                                 Err(HandshakeError::WouldBlock(mid)) => TlsState::Handshaking(mid),
-
-                                Err(err) => {
-                                    eprintln!("TLS handshake failed: {:?}", err);
+                                Err(_) => {
+                                    // eprintln!("TLS handshake failed: {:?}", err);
                                     continue;
                                 }
                             };
@@ -361,8 +359,8 @@ impl SSLServer {
                                 poll_fds[i].events = POLLIN | POLLOUT;
                                 continue;
                             }
-                            Err(err) => {
-                                eprintln!("Handshake error: {}", err);
+                            Err(_) => {
+                                // eprintln!("Handshake error: {}", err);
                                 indices_to_remove.push(i);
                                 continue;
                             }
@@ -383,8 +381,8 @@ impl SSLServer {
                             Ok(WriteState::Close) => {
                                 indices_to_remove.push(i);
                             }
-                            Err(err) => {
-                                eprintln!("Write error: {}", err);
+                            Err(_) => {
+                                // eprintln!("Write error: {}", err);
                                 indices_to_remove.push(i);
                             }
                         }
@@ -403,8 +401,8 @@ impl SSLServer {
                             Ok(false) => {
                                 indices_to_remove.push(i);
                             }
-                            Err(err) => {
-                                eprintln!("Read error: {}", err);
+                            Err(_) => {
+                                // eprintln!("Read error: {}", err);
                                 indices_to_remove.push(i);
                             }
                         }

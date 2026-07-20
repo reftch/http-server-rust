@@ -1,6 +1,7 @@
 use response::Status;
 use router::Method;
-use sslserver::SSLServer;
+use sslserver::Server;
+// use server::Server;
 use utils::get_env;
 
 fn main() -> std::io::Result<()> {
@@ -8,7 +9,7 @@ fn main() -> std::io::Result<()> {
     let port = get_env("PORT", 8080);
     let addr = format!("{}:{}", host, port);
 
-    let mut server = SSLServer::new(&addr)?;
+    let mut server = Server::new(&addr)?;
     server.set_assets_path("./assets");
 
     server.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
