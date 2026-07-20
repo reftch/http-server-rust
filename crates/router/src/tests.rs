@@ -56,10 +56,16 @@ fn test_route_with_query_params() {
 
     router.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
         let id = req.params.get("id").unwrap();
-        res.body = format!("ID is {}, query tex is {}", id, req.query_params.get("tex").unwrap());
+        res.body = format!(
+            "ID is {}, query tex is {}",
+            id,
+            req.query_params.get("tex").unwrap()
+        );
     });
 
-    let res_from_buf = router.route(&mut req_from_buf).expect("Route should be found");
+    let res_from_buf = router
+        .route(&mut req_from_buf)
+        .expect("Route should be found");
     assert_eq!(res_from_buf.body, "ID is 2, query tex is 1");
 }
 
@@ -172,4 +178,34 @@ fn test_param_with_multiple_parts() {
     };
     let res = router.route(&mut req).expect("Route should be found");
     assert_eq!(res.body, "foo/bar/end");
+}
+
+#[test]
+fn test_param_with_multiple_parts_and_query_params() {
+    let mut router = Router::new();
+    let buf = b"GET /api/v1/inc/2?a=1&b=2&c=3 HTTP/1.1\r\n\r\n";
+    let mut req_from_buf = Request::parse(buf).expect("Should parse");
+
+    router.add_route(Method::GET, "/api/:version/:operation/:id", |req, res| {
+        let id = req.params.get("id").unwrap();
+        let version = req.params.get("version").unwrap();
+        let operation = req.params.get("operation").unwrap();
+        res.body = format!(
+            "Version is {}, Operation is {}, ID is {}, query params is {} {} {}",
+            version,
+            operation,
+            id,
+            req.query_params.get("a").unwrap(),
+            req.query_params.get("b").unwrap(),
+            req.query_params.get("c").unwrap(),
+        );
+    });
+
+    let res_from_buf = router
+        .route(&mut req_from_buf)
+        .expect("Route should be found");
+    assert_eq!(
+        res_from_buf.body,
+        "Version is v1, Operation is inc, ID is 2, query params is 1 2 3"
+    );
 }
