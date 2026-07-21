@@ -4,12 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+logger = { path = "../logger" }
 request = { path = "../request" }
 response = { path = "../response" }
 router = { path = "../router" }
 libc = "0.2"
-openssl = "0.10"
-#openssl = { version = "0.10", features = ["vendored"] }
+#openssl = "0.10"
+openssl = { version = "0.10", features = ["vendored"] }
 
 [dev-dependencies]
 tempfile = "3"

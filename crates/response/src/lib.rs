@@ -223,7 +223,6 @@ impl Response {
 
         // Add Content-Length header
         response.push_str(&format!("Content-Length: {}\r\n", self.body.len()));
-        response.push_str("Connection: keep-alive\r\n");
 
         // Add custom headers from the collection
         for (key, value) in &self.headers {
@@ -237,7 +236,9 @@ impl Response {
     }
 
     pub fn set_header(&mut self, key: String, value: String) -> &mut Self {
-        self.headers.entry(key).or_insert(value);
+        if !self.headers.contains_key(&key) {
+            self.headers.insert(key, value);
+        }
         self
     }
 

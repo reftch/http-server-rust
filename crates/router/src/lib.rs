@@ -1,3 +1,4 @@
+use logger::trace;
 use request::Request;
 use response::{ContentType, Response, Status};
 use std::collections::HashMap;
@@ -26,6 +27,19 @@ impl Method {
     #[inline]
     pub fn index(self) -> usize {
         self as usize
+    }
+
+    #[inline]
+    pub fn to_string(&self) -> String {
+        match self {
+            Method::GET => "GET".to_string(),
+            Method::POST => "POST".to_string(),
+            Method::PUT => "PUT".to_string(),
+            Method::PATCH => "PATCH".to_string(),
+            Method::DELETE => "DELETE".to_string(),
+            Method::HEAD => "HEAD".to_string(),
+            Method::OPTIONS => "OPTIONS".to_string(),
+        }
     }
 }
 
@@ -117,6 +131,7 @@ impl Router {
             if let Some(next) = current.children.get(part) {
                 current = next.as_ref();
             } else if let Some(pc) = &current.param_child {
+                trace!("Extracting param: {} = '{}'", pc.name, part);
                 request.params.insert(pc.name.as_ref(), part);
                 current = pc.node.as_ref();
             } else {
@@ -126,8 +141,10 @@ impl Router {
 
         let method: Method = request.method.parse().expect("Failed to parse");
 
+        trace!("Looking up handler for method: {}", method.to_string());
         let handler = current.handlers[method.index()]?;
 
+        trace!("Handler found. Executing...");
         let mut response = Response::new(Status::Ok, b"", ContentType::TEXT);
         handler(request, &mut response);
 
