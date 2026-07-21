@@ -71,6 +71,7 @@ impl Server {
     }
 
     fn new_with_assets(addr: &str, assets_path: PathBuf) -> io::Result<Self> {
+        let init_start = Instant::now();
         let router = Arc::new(Router::new());
         let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
 
@@ -81,7 +82,7 @@ impl Server {
         builder.set_certificate_chain_file("cert.pem").unwrap();
 
         Ok(Server {
-            init_start: Instant::now(),
+            init_start,
             listener: TcpListener::bind(addr.parse::<std::net::SocketAddr>().unwrap())?,
             router,
             assets_path,
