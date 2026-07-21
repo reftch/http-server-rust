@@ -27,6 +27,17 @@ impl<'a> Request<'a> {
         None
     }
 
+    /// Parses a HTTP request from a byte buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use request::Request;
+    /// let buf = b"GET / HTTP/1.1\r\n\r\n";
+    /// let request = Request::parse(buf).unwrap();
+    /// assert_eq!(request.method, "GET");
+    /// assert_eq!(request.path, "/");
+    /// ```
     pub fn parse(buf: &'a [u8]) -> Option<Self> {
         let header_end = Self::find_header_end(buf)?;
 
@@ -101,6 +112,16 @@ impl<'a> Request<'a> {
     }
 
     #[inline]
+    /// Returns the HTTP `Content-Type` header value if present.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use request::Request;
+    /// let buf = b"POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n";
+    /// let request = Request::parse(buf).unwrap();
+    /// assert_eq!(request.mime_type(), Some("application/json"));
+    /// ```
     pub fn mime_type(&self) -> Option<&str> {
         self.headers.get("Content-Type").copied()
     }
