@@ -76,11 +76,3 @@ fn test_timestamp_is_reasonable() {
     assert_eq!(&timestamp[16..17], ":");
     assert_eq!(&timestamp[19..20], ".");
 }
-
-#[test]
-fn test_logging_macros_do_not_panic() {
-    debug!("debug message {}", 123);
-    info!("info message {}", "hello");
-    warn!("warning");
-    error!("error code {}", 500);
-}

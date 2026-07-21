@@ -43,6 +43,15 @@ static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Info as u8);
 /// It holds our sender and initializes the background thread on its first use.
 static LOG_SENDER: OnceLock<Sender<LogEntry>> = OnceLock::new();
 
+/// Sets the global log level threshold. Only messages with a level
+/// equal to or higher than this will be logged.
+///
+/// # Examples
+///
+/// ```rust
+/// use logger::{set_level, LogLevel};
+/// set_level(LogLevel::Warn);
+/// ```
 pub fn set_level(level: LogLevel) {
     GLOBAL_LOG_LEVEL.store(level as u8, Ordering::SeqCst);
 }
@@ -86,7 +95,15 @@ fn get_sender() -> &'static Sender<LogEntry> {
     })
 }
 
-// --- TIME LOGIC (Your original implementation) ---
+/// Formats a duration into a timestamp string: YYYY-MM-DD HH:MM:SS.mmm
+///
+/// # Examples
+///
+/// ```rust
+/// use logger::format_timestamp;
+/// let ts = format_timestamp(0, 500);
+/// assert_eq!(ts, "1970-01-01 00:00:00.500");
+/// ```
 pub fn format_timestamp(total_seconds: u64, millis: u64) -> String {
     let sec = total_seconds % 60;
     let min = (total_seconds / 60) % 60;
@@ -148,7 +165,14 @@ fn get_timestamp() -> String {
     format_timestamp(now.as_secs(), now.as_millis() as u64 % 1000)
 }
 
-// --- CORE LOGGING FUNCTION ---
+/// Prints a log message to stdout via the background thread.
+///
+/// # Examples
+///
+/// ```rust
+/// use logger::{print_log, LogLevel};
+/// print_log(LogLevel::Info, "test_module", format_args!("Hello, world!"));
+/// ```
 pub fn print_log(level: LogLevel, module: &str, args: Arguments<'_>) {
     if level < get_current_threshold() {
         return;
@@ -194,3 +218,6 @@ macro_rules! warn {
 macro_rules! error {
     ($($arg:tt)+) => { $crate::print_log($crate::LogLevel::Error, module_path!(), format_args!($($arg)+)); };
 }
+
+#[cfg(test)]
+mod tests;

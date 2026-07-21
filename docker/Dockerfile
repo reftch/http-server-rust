@@ -36,8 +36,8 @@ FROM scratch
 COPY --from=builder /http-server /http-server
 COPY --from=builder /app/assets /assets
 
-COPY cert.pem /cert.pem
-COPY key.pem /key.pem
+# COPY cert.pem /cert.pem
+# COPY key.pem /key.pem
 
 EXPOSE 8443
 
