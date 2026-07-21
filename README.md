@@ -25,10 +25,15 @@ Implements a prefix-tree (Trie) based router for efficient path matching and dyn
 ### `server`
 The core engine that manages TCP listeners, asynchronous I/O via system polling, and the orchestration of the request-response lifecycle.
 
+### `sslserver`
+Provides an HTTPS-capable server implementation that handles TLS handshakes and manages certificates using OpenSSL.
+
 ### `utils`
 Provides shared utility functions, such as environment variable parsing with default fallbacks.
 
 ## Usage Example
+
+### HTTP (Standard)
 
 Here is a comprehensive example demonstrating how to initialize the server, configure static assets, add dynamic routes, and construct responses:
 
@@ -49,7 +54,6 @@ fn main() -> std::io::Result<()> {
     server.set_assets_path("./assets");
 
     // 4. Add a dynamic route with path parameters
-    // The ":id" part will be extracted into request.params
     server.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
         if let Some(id) = req.params.get("id") {
             if let Ok(val) = id.parse::<i32>() {
@@ -58,7 +62,6 @@ fn main() -> std::io::Result<()> {
                     .set_content_type(ContentType::JSON)
                     .set_body(format!("{{\"value\":{}}}", val + 1));
             } else {
-                // Handle invalid input
                 res.set_status(Status::BadRequest)
                     .set_body("Invalid ID - must be an integer".to_string());
             }
@@ -71,6 +74,55 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 ```
+
+### HTTPS (SSL/TLS)
+
+To use the `sslserver`, you need to provide `key.pem` and `cert.pem` in your working directory. You can generate these using OpenSSL:
+
+```bash
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes
+```
+
+The usage pattern is nearly identical, but you use the `sslserver::Server` instead of `server::Server`:
+
+```rust
+use response::{Status, ContentType};
+use router::Method;
+use sslserver::Server;
+use utils::get_env;
+
+fn main() -> std::io::Result<()> {
+    // Use a different default port for HTTPS (e.g., 8443)
+    let addr = format!("{}:{}", get_env("HOST", "0.0.0.0".to_string()), get_env("PORT", 8443));
+
+    let mut server = Server::new(&addr)?;
+    server.set_assets_path("./assets");
+
+    server.add_route(Method::GET, "/api/v1/inc/:id", |req, res| {
+        if let Some(id) = req.params.get("id") {
+            if let Ok(val) = id.parse::<i32>() {
+                res.set_status(Status::Ok)
+                    .set_content_type(ContentType::JSON)
+                    .set_body(format!("{{\"value\":{}}}", val + 1));
+            } else {
+                res.set_status(Status::BadRequest)
+                    .set_body("Invalid ID - must be an integer".to_string());
+            }
+        }
+    });
+
+    server.run()?;
+
+    Ok(())
+}
+```
+
+To connect to the HTTPS server, you can use `curl` with the `-k` flag (to ignore self-signed certificate warnings):
+
+```bash
+curl -k https://localhost:8443/api/v1/inc/42
+```
+
 
 ## API Reference Summary
 

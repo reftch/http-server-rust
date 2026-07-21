@@ -8,6 +8,7 @@ env = {
     "DEV_MODE" = "true", 
     "HOST" = "0.0.0.0", 
     "PORT" = "8443",
+    "RUST_LOG"= "info",
 }
 run = [
     { tasks = ["watch-app"] }, 

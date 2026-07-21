@@ -7,6 +7,7 @@ use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use logger::info;
 use request::Request;
 use response::{ContentType, Response, Status};
 use router::Router;
@@ -194,11 +195,12 @@ impl Server {
         let mut connections: HashMap<i32, Connection> = HashMap::new();
 
         let startup_us = self.init_start.elapsed().as_micros();
-        println!(
+        let local_addr = self.listener.local_addr()?;
+        info!(
             "Server started on http://{} in {}µs",
-            self.listener.local_addr()?,
-            startup_us
+            local_addr, startup_us
         );
+        // println!("Server started on http://{} in {}µs", local_addr, startup_us);
 
         let mut indices_to_remove = Vec::new();
 
