@@ -146,10 +146,10 @@ impl Server {
             );
 
             let response = if let Some(resp) = router.route(&mut request) {
-                debug!("Route matched for path: {}", request.path);
+                trace!("Route matched for path: {}", request.path);
                 resp
             } else if let Some(resp) = Self::handle_static(request.path, assets_path) {
-                debug!("Static asset found: {}", request.path);
+                trace!("Static asset found: {}", request.path);
                 resp
             } else {
                 warn!("Route not found: {}", request.path);

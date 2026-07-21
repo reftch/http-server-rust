@@ -1,3 +1,4 @@
+use logger::{debug, info, trace, warn};
 use request::Request;
 use response::{ContentType, Response, Status};
 use std::collections::HashMap;
@@ -26,6 +27,18 @@ impl Method {
     #[inline]
     pub fn index(self) -> usize {
         self as usize
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Method::GET => "GET".to_string(),
+            Method::POST => "POST".to_string(),
+            Method::PUT => "PUT".to_string(),
+            Method::PATCH => "PATCH".to_string(),
+            Method::DELETE => "DELETE".to_string(),
+            Method::HEAD => "HEAD".to_string(),
+            Method::OPTIONS => "OPTIONS".to_string(),
+        }
     }
 }
 
@@ -107,16 +120,25 @@ impl Router {
             }
         }
 
+        info!(
+            "Added handler to method: {} => {}",
+            method.to_string(),
+            path
+        );
         current.handlers[method.index()] = Some(handler);
     }
 
     pub fn route<'a>(&'a self, request: &mut Request<'a>) -> Option<Response> {
+        // Log the incoming request attempt
+        trace!("Routing request: {} {}", request.method, request.path);
+
         let mut current = &self.root;
 
         for part in request.path.split('/').filter(|s| !s.is_empty()) {
             if let Some(next) = current.children.get(part) {
                 current = next.as_ref();
             } else if let Some(pc) = &current.param_child {
+                trace!("Extracting param: {} = '{}'", pc.name, part);
                 request.params.insert(pc.name.as_ref(), part);
                 current = pc.node.as_ref();
             } else {
@@ -126,8 +148,12 @@ impl Router {
 
         let method: Method = request.method.parse().expect("Failed to parse");
 
+        // Note: We cannot log a failure here without changing the '?' logic,
+        // but we can log that we are attempting to find the handler.
+        trace!("Looking up handler for method: {}", method.to_string());
         let handler = current.handlers[method.index()]?;
 
+        trace!("Handler found. Executing...");
         let mut response = Response::new(Status::Ok, b"", ContentType::TEXT);
         handler(request, &mut response);
 

@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 request = { path = "../request" }
 response = { path = "../response" }
+logger = { path = "../logger" }
