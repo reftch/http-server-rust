@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use logger::trace;
+
 pub struct Request<'a> {
     pub method: &'a str,
     pub path: &'a str,
@@ -65,6 +67,7 @@ impl<'a> Request<'a> {
                 let query_str = &full_path[pos + 1..];
                 for pair in query_str.split('&') {
                     if let Some((key, value)) = pair.split_once('=') {
+                        trace!("Found query parameter [{}={}]", key, value);
                         query_params.insert(key, value);
                     }
                 }

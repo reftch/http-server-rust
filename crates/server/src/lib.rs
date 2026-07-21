@@ -127,7 +127,7 @@ impl Server {
                 }
                 Err(ref err) if Self::would_block(err) => {
                     // Expected behavior in non-blocking I/O; move to processing phase.
-                    error!("Read would block; returning control to event loop");
+                    debug!("Read would block; returning control to event loop");
                     break;
                 }
                 Err(err) => {

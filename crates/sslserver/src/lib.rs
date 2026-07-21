@@ -174,7 +174,7 @@ impl Server {
                 }
                 Err(ref err) if Self::would_block(err) => {
                     // Expected behavior in non-blocking I/O; move to processing phase.
-                    error!("Read would block; returning control to event loop");
+                    debug!("Read would block; returning control to event loop");
                     break;
                 }
                 Err(err) => {
@@ -225,10 +225,6 @@ impl Server {
             .components()
             .any(|c| matches!(c, std::path::Component::ParentDir))
         {
-            warn!(
-                "Security warning: Attempted directory traversal attack with path: {}",
-                path
-            );
             return None;
         }
 
@@ -241,7 +237,6 @@ impl Server {
         }
 
         if !full_path.is_file() {
-            debug!("Static file not found: {}", full_path.display());
             return None;
         }
 
@@ -410,7 +405,7 @@ impl Server {
 
                 // Handle unexpected connection drops (Client disconnected or error occurred at OS level)
                 if events & (POLLERR | POLLHUP) != 0 {
-                    warn!("Connection FD {} closed via poll event (ERR/HUP)", fd);
+                    debug!("Connection FD {} closed via poll event (ERR/HUP)", fd);
                     indices_to_remove.push(i);
                     continue;
                 }

@@ -1,4 +1,4 @@
-use logger::{info, trace};
+use logger::trace;
 use request::Request;
 use response::{ContentType, Response, Status};
 use std::collections::HashMap;
@@ -29,6 +29,7 @@ impl Method {
         self as usize
     }
 
+    #[inline]
     pub fn to_string(&self) -> String {
         match self {
             Method::GET => "GET".to_string(),
@@ -120,18 +121,10 @@ impl Router {
             }
         }
 
-        info!(
-            "Added handler to method: {} => {}",
-            method.to_string(),
-            path
-        );
         current.handlers[method.index()] = Some(handler);
     }
 
     pub fn route<'a>(&'a self, request: &mut Request<'a>) -> Option<Response> {
-        // Log the incoming request attempt
-        trace!("Routing request: {} {}", request.method, request.path);
-
         let mut current = &self.root;
 
         for part in request.path.split('/').filter(|s| !s.is_empty()) {
@@ -148,8 +141,6 @@ impl Router {
 
         let method: Method = request.method.parse().expect("Failed to parse");
 
-        // Note: We cannot log a failure here without changing the '?' logic,
-        // but we can log that we are attempting to find the handler.
         trace!("Looking up handler for method: {}", method.to_string());
         let handler = current.handlers[method.index()]?;
 
