@@ -7,6 +7,8 @@ use utils::get_env;
 const PORT: u16 = 8080;
 
 fn main() -> std::io::Result<()> {
+    // logger::set_level(logger::LogLevel::Trace);
+
     let host = get_env("HOST", "0.0.0.0".to_string());
     let port = get_env("PORT", PORT);
     let addr = format!("{}:{}", host, port);
