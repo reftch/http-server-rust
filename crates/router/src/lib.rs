@@ -16,31 +16,33 @@ pub enum Method {
     OPTIONS,
 }
 
+// A simple error type for when parsing fails
+#[derive(Debug, PartialEq, Eq)]
+pub struct InvalidMethod;
+
 impl Method {
+    /// Returns the integer index of the method.
+    /// This is now extremely fast because it's a direct cast.
     #[inline]
     pub fn index(self) -> usize {
-        match self {
-            Method::GET => 0,
-            Method::POST => 1,
-            Method::PUT => 2,
-            Method::PATCH => 3,
-            Method::DELETE => 4,
-            Method::HEAD => 5,
-            Method::OPTIONS => 6,
-        }
+        self as usize
     }
+}
 
-    #[inline]
-    pub fn from_str(method: &str) -> Option<Self> {
-        match method {
-            "GET" => Some(Method::GET),
-            "POST" => Some(Method::POST),
-            "PUT" => Some(Method::PUT),
-            "PATCH" => Some(Method::PATCH),
-            "DELETE" => Some(Method::DELETE),
-            "HEAD" => Some(Method::HEAD),
-            "OPTIONS" => Some(Method::OPTIONS),
-            _ => None,
+// This is what allows you to use .parse() and the '?' operator correctly.
+impl std::str::FromStr for Method {
+    type Err = InvalidMethod; // We define that this parser returns an InvalidMethod error
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "GET" => Ok(Method::GET),
+            "POST" => Ok(Method::POST),
+            "PUT" => Ok(Method::PUT),
+            "PATCH" => Ok(Method::PATCH),
+            "DELETE" => Ok(Method::DELETE),
+            "HEAD" => Ok(Method::HEAD),
+            "OPTIONS" => Ok(Method::OPTIONS),
+            _ => Err(InvalidMethod), // Return an error instead of None
         }
     }
 }
@@ -70,6 +72,12 @@ impl TrieNode {
 
 pub struct Router {
     root: TrieNode,
+}
+
+impl Default for Router {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Router {
@@ -116,7 +124,7 @@ impl Router {
             }
         }
 
-        let method = Method::from_str(request.method)?;
+        let method: Method = request.method.parse().expect("Failed to parse");
 
         let handler = current.handlers[method.index()]?;
 

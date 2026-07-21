@@ -2,6 +2,7 @@ use super::*;
 use request::Request;
 use response::Response;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 fn hello_handler(_req: &Request, res: &mut Response) {
     res.body = "Hello, World!".to_string().into();
@@ -101,9 +102,9 @@ fn test_different_methods() {
 
 #[test]
 fn test_method_from_str() {
-    assert_eq!(Method::from_str("GET"), Some(Method::GET));
-    assert_eq!(Method::from_str("POST"), Some(Method::POST));
-    assert_eq!(Method::from_str("INVALID"), None);
+    assert_eq!(Method::from_str("GET"), Ok(Method::GET));
+    assert_eq!(Method::from_str("POST"), Ok(Method::POST));
+    assert_eq!(Method::from_str("INVALID"), Err(InvalidMethod));
 }
 
 #[test]

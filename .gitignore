@@ -21,3 +21,7 @@ target
 #.idea/
 
 AGENTS.md
+cert.pem
+key.pem
+
+.DS_Store

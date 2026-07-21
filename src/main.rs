@@ -1,11 +1,14 @@
 use response::Status;
 use router::Method;
-use server::Server;
+use sslserver::Server;
+// use server::Server;
 use utils::get_env;
+
+const PORT: u16 = 8443;
 
 fn main() -> std::io::Result<()> {
     let host = get_env("HOST", "0.0.0.0".to_string());
-    let port = get_env("PORT", 8080);
+    let port = get_env("PORT", PORT);
     let addr = format!("{}:{}", host, port);
 
     let mut server = Server::new(&addr)?;

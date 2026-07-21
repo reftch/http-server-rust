@@ -36,9 +36,9 @@ impl<'a> Request<'a> {
         let request_line = lines.next()?;
 
         let first_space = request_line.find(' ')?;
-        let second_space = match request_line[first_space + 1..].find(' ') {
-            Some(i) => i + first_space + 1,
-            None => return None,
+        let second_space = {
+            let i = request_line[first_space + 1..].find(' ')?;
+            i + first_space + 1
         };
 
         if second_space >= request_line.len().saturating_sub(1) {
@@ -46,9 +46,9 @@ impl<'a> Request<'a> {
         }
 
         let first_space = request_line.find(' ')?;
-        let second_space = match request_line[first_space + 1..].find(' ') {
-            Some(i) => i + first_space + 1,
-            None => return None,
+        let second_space = {
+            let i = request_line[first_space + 1..].find(' ')?;
+            i + first_space + 1
         };
 
         if second_space >= request_line.len().saturating_sub(1) {
