@@ -84,7 +84,7 @@ impl Server {
             match conn.socket.write(&conn.write_buf) {
                 Ok(0) => {
                     // Ok(0) usually means the connection was closed by the remote peer
-                    info!("Socket closed by peer (EOF on write); state: Close");
+                    debug!("Socket closed by peer (EOF on write); state: Close");
                     return Ok(WriteState::Close);
                 }
                 Ok(n) => {
@@ -117,7 +117,7 @@ impl Server {
             match conn.socket.read(&mut buf) {
                 Ok(0) => {
                     // A read of 0 bytes usually signifies the peer has closed the connection.
-                    info!("Connection closed by peer (EOF); state: Terminating");
+                    debug!("Connection closed by peer (EOF); state: Terminating");
                     return Ok(false);
                 }
                 Ok(n) => {
@@ -127,7 +127,7 @@ impl Server {
                 }
                 Err(ref err) if Self::would_block(err) => {
                     // Expected behavior in non-blocking I/O; move to processing phase.
-                    trace!("Read would block; returning control to event loop");
+                    error!("Read would block; returning control to event loop");
                     break;
                 }
                 Err(err) => {
@@ -322,7 +322,7 @@ impl Server {
                                 revents: 0,
                             });
                             connections.insert(fd, conn);
-                            // info! is appropriate for a new connection event
+                            // is appropriate for a new connection event
                             debug!("New connection accepted from {} (FD: {})", addr, fd);
                         }
                         Err(ref err) if Self::would_block(err) => break,

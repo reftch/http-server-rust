@@ -1,4 +1,5 @@
 use libc::{POLLERR, POLLHUP, POLLIN, POLLOUT};
+use logger::{debug, error, info, trace, warn};
 use openssl::ssl::{
     HandshakeError, MidHandshakeSslStream, SslAcceptor, SslFiletype, SslMethod, SslStream,
 };
@@ -72,14 +73,21 @@ impl Server {
 
     fn new_with_assets(addr: &str, assets_path: PathBuf) -> io::Result<Self> {
         let init_start = Instant::now();
+
         let router = Arc::new(Router::new());
         let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
 
-        builder
-            .set_private_key_file("key.pem", SslFiletype::PEM)
-            .unwrap();
+        // Try to load the private key. If it fails, log and crash the app.
+        if let Err(_) = builder.set_private_key_file("key.pem", SslFiletype::PEM) {
+            error!("ERROR: Failed to load 'key.pem'");
+            panic!("Server initialization failed: 'key.pem' not found.");
+        }
 
-        builder.set_certificate_chain_file("cert.pem").unwrap();
+        // Try to load the certificate. If it fails, log and crash the app.
+        if let Err(_) = builder.set_certificate_chain_file("cert.pem") {
+            error!("ERROR: Failed to load 'cert.pem'");
+            panic!("Server initialization failed: 'cert.pem' not found.");
+        }
 
         Ok(Server {
             init_start,
@@ -100,6 +108,8 @@ impl Server {
     fn handle_write(conn: &mut Connection) -> io::Result<WriteState> {
         loop {
             if conn.write_buf.is_empty() {
+                // Log that the buffer is clear and we are finished
+                trace!("Write buffer is empty. Finishing write state.");
                 return Ok(WriteState::Done);
             }
 
@@ -111,15 +121,26 @@ impl Server {
 
                 TlsState::Connected(stream) => match stream.write(&conn.write_buf) {
                     Ok(0) => {
+                        // Log that the remote side closed the connection
+                        debug!("Socket closed by peer (EOF on write); state: Close");
                         return Ok(WriteState::Close);
                     }
                     Ok(n) => {
+                        // Log progress of data being sent
+                        debug!(
+                            "Wrote {} bytes; remaining in buffer: {}",
+                            n,
+                            conn.write_buf.len() - n
+                        );
                         conn.write_buf.drain(0..n);
                     }
                     Err(ref err) if Self::would_block(err) => {
+                        trace!("Write would block; state: Continue");
                         return Ok(WriteState::Continue);
                     }
                     Err(err) => {
+                        // Log the actual I/O error before returning it
+                        error!("Failed to write to socket: {}", err);
                         return Err(err);
                     }
                 },
@@ -142,31 +163,55 @@ impl Server {
 
             match stream.read(&mut buf) {
                 Ok(0) => {
+                    // A read of 0 bytes usually signifies the peer has closed the connection.
+                    debug!("Connection closed by peer (EOF); state: Terminating");
                     return Ok(false);
                 }
                 Ok(n) => {
+                    // Log successful reads at debug level to track data influx without spamming logs.
+                    debug!("Read {} bytes from socket", n);
                     conn.read_buf.extend_from_slice(&buf[..n]);
                 }
                 Err(ref err) if Self::would_block(err) => {
+                    // Expected behavior in non-blocking I/O; move to processing phase.
+                    error!("Read would block; returning control to event loop");
                     break;
                 }
                 Err(err) => {
+                    // Actual I/O error (e.g., ConnectionReset).
+                    error!("Socket read error: {}", err);
                     return Err(err);
                 }
             }
         }
 
         if let Some(mut request) = Request::parse(&conn.read_buf) {
+            trace!(
+                "Request parsed successfully: {} {}",
+                request.method, request.path
+            );
+
             let response = if let Some(resp) = router.route(&mut request) {
+                trace!("Route matched for path: {}", request.path);
                 resp
             } else if let Some(resp) = Self::handle_static(request.path, assets_path) {
+                trace!("Static asset found: {}", request.path);
                 resp
             } else {
+                warn!("Route not found: {}", request.path);
                 Response::new(Status::NotFound, "Not Found", ContentType::TEXT)
             };
 
             conn.write_buf = response.to_bytes();
             conn.read_buf.clear();
+            trace!(
+                "Response prepared; write_buf size: {} bytes",
+                conn.write_buf.len()
+            );
+        } else {
+            // We don't log anything here if the buffer is just incomplete,
+            // as that would be too noisy (the loop might trigger many times for a partial request).
+            trace!("Buffer contains partial request; waiting for more data...");
         }
 
         Ok(true)
@@ -175,11 +220,15 @@ impl Server {
     fn handle_static(path: &str, assets_path: &Path) -> Option<Response> {
         let requested_path = Path::new(path);
 
-        // Prevent directory traversal
+        // Prevent directory traversal attacks (e.g., "/../etc/passwd")
         if requested_path
             .components()
             .any(|c| matches!(c, std::path::Component::ParentDir))
         {
+            warn!(
+                "Security warning: Attempted directory traversal attack with path: {}",
+                path
+            );
             return None;
         }
 
@@ -187,22 +236,39 @@ impl Server {
             assets_path.join(requested_path.strip_prefix("/").unwrap_or(requested_path));
 
         if full_path.is_dir() {
+            // If a directory is requested, default to index.html as per standard web server behavior
             full_path.push("index.html");
         }
 
         if !full_path.is_file() {
+            debug!("Static file not found: {}", full_path.display());
             return None;
         }
 
-        let content = fs::read(&full_path).ok()?;
-        let content_type = Self::get_content_type(&full_path);
+        // Attempt to read the file from the filesystem
+        match fs::read(&full_path) {
+            Ok(content) => {
+                let content_type = Self::get_content_type(&full_path);
+                trace!(
+                    "Successfully read static file: {} ({} bytes)",
+                    full_path.display(),
+                    content.len()
+                );
 
-        Some(Response {
-            status: Status::Ok,
-            body: content,
-            content_type,
-            headers: HashMap::new(),
-        })
+                Some(Response {
+                    status: Status::Ok,
+                    body: content,
+                    content_type,
+                    headers: HashMap::new(),
+                })
+            }
+            Err(err) => {
+                // Log as error because a file that 'should' exist but can't be read
+                // is a filesystem issue (permissions, locked files, etc.)
+                error!("Failed to read static file {:?}: {}", full_path, err);
+                None
+            }
+        }
     }
 
     fn get_content_type(path: &Path) -> ContentType {
@@ -233,10 +299,10 @@ impl Server {
 
     pub fn add_route(&mut self, method: router::Method, path: &str, handler: router::HandlerFn) {
         if let Some(router) = std::sync::Arc::get_mut(&mut self.router) {
+            trace!("Successfully added route: {} {}", method.index(), path);
             router.add_route(method, path, handler);
         }
     }
-
     pub fn run(&mut self) -> io::Result<()> {
         self.listener.set_nonblocking(true)?;
 
@@ -250,7 +316,7 @@ impl Server {
 
         let startup_us = self.init_start.elapsed().as_micros();
 
-        println!(
+        info!(
             "HTTPS server started on https://{} in {}µs",
             self.listener.local_addr()?,
             startup_us
@@ -275,9 +341,11 @@ impl Server {
                 let err = io::Error::last_os_error();
 
                 if err.kind() == io::ErrorKind::Interrupted {
+                    trace!("Poll interrupted by signal");
                     continue;
                 }
 
+                error!("Fatal error during poll: {}", err);
                 return Err(err);
             }
 
@@ -285,9 +353,7 @@ impl Server {
                 continue;
             }
 
-            //
             // Accept HTTPS clients
-            //
             if poll_fds[0].revents & POLLIN != 0 {
                 loop {
                     match self.listener.accept() {
@@ -297,19 +363,21 @@ impl Server {
                             let tls_state = match self.acceptor.accept(stream) {
                                 Ok(ssl) => TlsState::Connected(ssl),
                                 Err(HandshakeError::WouldBlock(mid)) => TlsState::Handshaking(mid),
-                                Err(_) => {
-                                    // eprintln!("TLS handshake failed: {:?}", err);
+                                Err(e) => {
+                                    // Log handshake failures (like bad protocols or missing certs)
+                                    warn!("TLS handshake initialization failed: {:?}", e);
                                     continue;
                                 }
                             };
 
                             let conn = Connection::new(tls_state);
-
                             let fd = conn.fd();
+
+                            // Log new connection attempt
+                            debug!("New connection accepted: FD {} from {}", fd, _addr);
 
                             poll_fds.push(PollFd {
                                 fd,
-                                // handshake needs both directions
                                 events: POLLIN | POLLOUT,
                                 revents: 0,
                             });
@@ -322,7 +390,7 @@ impl Server {
                         }
 
                         Err(err) => {
-                            eprintln!("Accept error: {}", err);
+                            error!("Accept error: {}", err); // Replaced eprintln with error!
                             break;
                         }
                     }
@@ -331,18 +399,18 @@ impl Server {
 
             indices_to_remove.clear();
 
-            //
             // Client connections
-            //
             for (i, item) in poll_fds.iter_mut().enumerate().skip(1) {
                 if item.revents == 0 {
                     continue;
                 }
 
-                let fd = item.fd; // No need for poll_fds[i].fd
+                let fd = item.fd;
                 let events = item.revents;
 
+                // Handle unexpected connection drops (Client disconnected or error occurred at OS level)
                 if events & (POLLERR | POLLHUP) != 0 {
+                    warn!("Connection FD {} closed via poll event (ERR/HUP)", fd);
                     indices_to_remove.push(i);
                     continue;
                 }
@@ -352,13 +420,16 @@ impl Server {
                     if matches!(conn.tls.as_ref(), Some(TlsState::Handshaking(_))) {
                         match Self::continue_handshake(conn) {
                             Ok(true) => {
-                                item.events = POLLIN; // Use 'item' instead of 'poll_fds[i]'
+                                // Log when the handshake is successfully finished
+                                debug!("TLS Handshake completed for FD {}", fd);
+                                item.events = POLLIN;
                             }
                             Ok(false) => {
                                 item.events = POLLIN | POLLOUT;
                                 continue;
                             }
                             Err(_) => {
+                                debug!("TLS Handshake failed for FD {}", fd);
                                 indices_to_remove.push(i);
                                 continue;
                             }
@@ -375,9 +446,14 @@ impl Server {
                                 item.events = POLLOUT;
                             }
                             Ok(WriteState::Close) => {
+                                debug!(
+                                    "Connection FD {} closed by remote peer (WriteState::Close)",
+                                    fd
+                                );
                                 indices_to_remove.push(i);
                             }
-                            Err(_) => {
+                            Err(e) => {
+                                error!("Write error on FD {}: {}", fd, e);
                                 indices_to_remove.push(i);
                             }
                         }
@@ -392,9 +468,14 @@ impl Server {
                                 }
                             }
                             Ok(false) => {
+                                debug!(
+                                    "Connection FD {} closed by remote peer (Read finished)",
+                                    fd
+                                );
                                 indices_to_remove.push(i);
                             }
-                            Err(_) => {
+                            Err(e) => {
+                                error!("Read error on FD {}: {}", fd, e);
                                 indices_to_remove.push(i);
                             }
                         }
@@ -402,9 +483,7 @@ impl Server {
                 }
             }
 
-            //
             // Remove closed connections
-            //
             for i in indices_to_remove.iter().rev() {
                 let fd = poll_fds[*i].fd;
                 connections.remove(&fd);
@@ -424,14 +503,23 @@ impl Server {
 
             TlsState::Handshaking(mid) => match mid.handshake() {
                 Ok(stream) => {
+                    // Log successful completion of the handshake
+                    debug!("TLS handshake completed successfully.");
                     conn.tls = Some(TlsState::Connected(stream));
                     Ok(true)
                 }
                 Err(HandshakeError::WouldBlock(mid)) => {
+                    // NOTE: We do NOT log WouldBlock here because it is a normal,
+                    // high-frequency event in non-blocking I/O. Logging this would
+                    // cause massive performance issues and log spam.
                     conn.tls = Some(TlsState::Handshaking(mid));
                     Ok(false)
                 }
-                Err(e) => Err(io::Error::other(format!("{:?}", e))),
+                Err(e) => {
+                    // Log actual errors that prevent the handshake from completing
+                    error!("TLS handshake failed: {:?}", e);
+                    Err(io::Error::other(format!("{:?}", e)))
+                }
             },
         }
     }

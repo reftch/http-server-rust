@@ -80,7 +80,7 @@ fn main() -> std::io::Result<()> {
 To use the `sslserver`, you need to provide `key.pem` and `cert.pem` in your working directory. You can generate these using OpenSSL:
 
 ```bash
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes
+openssl req -x509 -noenc -keyout key.pem -out cert.pem -subj /CN=0.0.0.0
 ```
 
 The usage pattern is nearly identical, but you use the `sslserver::Server` instead of `server::Server`:

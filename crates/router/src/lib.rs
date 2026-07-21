@@ -1,4 +1,4 @@
-use logger::{debug, info, trace, warn};
+use logger::{info, trace};
 use request::Request;
 use response::{ContentType, Response, Status};
 use std::collections::HashMap;
