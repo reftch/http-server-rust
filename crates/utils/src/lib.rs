@@ -8,6 +8,19 @@ use std::str::FromStr;
 /// Returns the default value if the variable is not set or cannot be parsed.
 ///
 /// This function also handles boolean-like values such as "yes"/"no" and "1"/"0".
+///
+/// Example:
+///
+/// ```
+/// use utils::get_env;
+///
+/// let int_value = get_env("value", 8080);
+/// assert_eq!(int_value, 8080);
+/// let bool_value = get_env("bool", true);
+/// assert_eq!(bool_value, true);
+/// let bool_value = get_env("bool", false);
+/// assert_eq!(bool_value, false);
+/// ```
 pub fn get_env<T>(key: &str, default: T) -> T
 where
     T: FromStr + Clone,

@@ -373,25 +373,26 @@ impl Server {
                             }
                         }
                     }
-                } else if revents & POLLIN != 0 {
-                    if let Some(conn) = connections.get_mut(&fd) {
-                        match Self::handle_read(conn, &self.router, &self.assets_path) {
-                            Ok(true) => {
-                                if !conn.write_buf.is_empty() {
-                                    item.events = POLLOUT;
-                                }
-                            }
-                            Ok(false) => {
-                                // Client closed connection gracefully (EOF)
-                                debug!("FD {}: Connection closed by client", fd);
-                                indices_to_remove.push(i);
-                            }
-                            Err(err) => {
-                                error!("FD {}: Read error: {}", fd, err);
-                                indices_to_remove.push(i);
+                } else if revents & POLLIN != 0
+                    && let Some(conn) = connections.get_mut(&fd)
+                {
+                    match Self::handle_read(conn, &self.router, &self.assets_path) {
+                        Ok(true) => {
+                            if !conn.write_buf.is_empty() {
+                                item.events = POLLOUT;
                             }
                         }
+                        Ok(false) => {
+                            // Client closed connection gracefully (EOF)
+                            debug!("FD {}: Connection closed by client", fd);
+                            indices_to_remove.push(i);
+                        }
+                        Err(err) => {
+                            error!("FD {}: Read error: {}", fd, err);
+                            indices_to_remove.push(i);
+                        }
                     }
+                    // }
                 }
             }
 

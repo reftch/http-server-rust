@@ -78,16 +78,22 @@ impl Server {
         let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
 
         // Try to load the private key. If it fails, log and crash the app.
-        if let Err(_) = builder.set_private_key_file("key.pem", SslFiletype::PEM) {
-            error!("ERROR: Failed to load 'key.pem'");
-            panic!("Server initialization failed: 'key.pem' not found.");
-        }
+        match builder.set_private_key_file("key.pem", SslFiletype::PEM) {
+            Ok(_) => true,
+            Err(_) => {
+                error!("ERROR: Failed to load 'key.pem'");
+                panic!("Server initialization failed: 'key.pem' not found.");
+            }
+        };
 
         // Try to load the certificate. If it fails, log and crash the app.
-        if let Err(_) = builder.set_certificate_chain_file("cert.pem") {
-            error!("ERROR: Failed to load 'cert.pem'");
-            panic!("Server initialization failed: 'cert.pem' not found.");
-        }
+        match builder.set_certificate_chain_file("cert.pem") {
+            Ok(_) => true,
+            Err(_) => {
+                error!("ERROR: Failed to load 'cert.pem'");
+                panic!("Server initialization failed: 'cert.pem' not found.");
+            }
+        };
 
         Ok(Server {
             init_start,

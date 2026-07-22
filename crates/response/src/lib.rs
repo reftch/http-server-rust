@@ -236,9 +236,7 @@ impl Response {
     }
 
     pub fn set_header(&mut self, key: String, value: String) -> &mut Self {
-        if !self.headers.contains_key(&key) {
-            self.headers.insert(key, value);
-        }
+        self.headers.entry(key).or_insert(value);
         self
     }
 

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 pub type HandlerResponse = Response;
 pub type HandlerFn = fn(&Request, &mut Response);
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Method {
@@ -28,17 +29,18 @@ impl Method {
     pub fn index(self) -> usize {
         self as usize
     }
+}
 
-    #[inline]
-    pub fn to_string(&self) -> String {
+impl fmt::Display for Method {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Method::GET => "GET".to_string(),
-            Method::POST => "POST".to_string(),
-            Method::PUT => "PUT".to_string(),
-            Method::PATCH => "PATCH".to_string(),
-            Method::DELETE => "DELETE".to_string(),
-            Method::HEAD => "HEAD".to_string(),
-            Method::OPTIONS => "OPTIONS".to_string(),
+            Method::GET => write!(f, "GET"),
+            Method::POST => write!(f, "POST"),
+            Method::PUT => write!(f, "PUT"),
+            Method::PATCH => write!(f, "PATCH"),
+            Method::DELETE => write!(f, "DELETE"),
+            Method::HEAD => write!(f, "HEAD"),
+            Method::OPTIONS => write!(f, "OPTIONS"),
         }
     }
 }
